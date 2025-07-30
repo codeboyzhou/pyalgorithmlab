@@ -1,0 +1,11 @@
+[project]
+name = "pyalgorithmlab"
+description = "一个用于算法实现和探索的综合Python库"
+requires-python = ">=3.12"
+readme = "README.md"
+version = "0.1.0"
+dependencies = []
+
+[[tool.uv.index]]
+url = "https://pypi.tuna.tsinghua.edu.cn/simple"
+default = true

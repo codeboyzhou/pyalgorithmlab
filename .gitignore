@@ -1,0 +1,9 @@
+# PyCharm files
+.idea/
+
+# Python build files
+*.egg-info/
+__pycache__/
+
+# Jupyter Notebook files
+.ipynb_checkpoints/
