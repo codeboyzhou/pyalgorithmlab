@@ -4,7 +4,12 @@ description = "一个用于算法实现和探索的综合Python库"
 requires-python = ">=3.12"
 readme = "README.md"
 version = "0.1.0"
-dependencies = []
+dependencies = [
+    "loguru>=0.7.3",
+    "numpy>=2.3.2",
+    "pydantic>=2.11.7",
+    "pytest>=8.4.1",
+]
 
 [[tool.uv.index]]
 url = "https://pypi.tuna.tsinghua.edu.cn/simple"
