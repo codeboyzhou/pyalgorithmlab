@@ -1,7 +1,7 @@
 import numpy as np
 
-from pyalgorithmlab.pso.types import AlgorithmArguments, ProblemType
 from pyalgorithmlab.pso.core import ParticleSwarmOptimizer
+from pyalgorithmlab.pso.types import AlgorithmArguments, ProblemType
 from pyalgorithmlab.util import convergence
 
 
