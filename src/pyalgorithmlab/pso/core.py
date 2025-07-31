@@ -39,10 +39,11 @@ class ParticleSwarmOptimizer:
         self.individual_best_positions = self.positions.copy()
         self.individual_best_fitness = objective_function(self.positions)
 
-        if problem_type == ProblemType.MIN:
-            best_individual_index = np.argmin(self.individual_best_fitness)
-        elif problem_type == ProblemType.MAX:
-            best_individual_index = np.argmax(self.individual_best_fitness)
+        best_individual_index = (
+            np.argmin(self.individual_best_fitness)
+            if problem_type == ProblemType.MIN
+            else np.argmax(self.individual_best_fitness)
+        )
 
         self.global_best_positions = self.individual_best_positions[
             best_individual_index
@@ -91,21 +92,24 @@ class ParticleSwarmOptimizer:
     def _update_individual_best(self) -> None:
         """更新个体最优解"""
         fitness = self.objective_function(self.positions)
-        if self.problem_type == ProblemType.MIN:
-            better_indices = fitness < self.individual_best_fitness
-        elif self.problem_type == ProblemType.MAX:
-            better_indices = fitness > self.individual_best_fitness
+        better_indices = (
+            fitness < self.individual_best_fitness
+            if self.problem_type == ProblemType.MIN
+            else fitness > self.individual_best_fitness
+        )
         self.individual_best_fitness[better_indices] = fitness[better_indices]
         self.individual_best_positions[better_indices] = self.positions[better_indices]
 
     def _update_global_best(self) -> None:
         """更新全局最优解"""
-        if self.problem_type == ProblemType.MIN:
-            best_individual_index = np.argmin(self.individual_best_fitness)
-            compare_best_fitness = lambda x, y: x < y
-        elif self.problem_type == ProblemType.MAX:
-            best_individual_index = np.argmax(self.individual_best_fitness)
-            compare_best_fitness = lambda x, y: x > y
+        best_individual_index = (
+            np.argmin(self.individual_best_fitness)
+            if self.problem_type == ProblemType.MIN
+            else np.argmax(self.individual_best_fitness)
+        )
+        compare_best_fitness = lambda x, y: (
+            x < y if self.problem_type == ProblemType.MIN else lambda xx, yy: xx > yy
+        )
 
         if compare_best_fitness(
             self.individual_best_fitness[best_individual_index],
