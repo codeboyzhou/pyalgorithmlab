@@ -19,8 +19,18 @@ class PathPlanner3D:
         self,
         algorithm_args: AlgorithmArguments,
         start_point: tuple[float, float, float],
+        destination: tuple[float, float, float],
         peaks: list[Peak],
     ) -> None:
+        """
+        初始化3D路径规划器
+
+        Args:
+            algorithm_args: PSO算法参数
+            start_point: 起点坐标
+            destination: 终点坐标
+            peaks: 山脉峰值列表
+        """
         # 初始化坐标网格
         x = np.linspace(algorithm_args.position_bounds_min[0], algorithm_args.position_bounds_max[0], 100)
         y = np.linspace(algorithm_args.position_bounds_min[1], algorithm_args.position_bounds_max[1], 100)
@@ -31,13 +41,23 @@ class PathPlanner3D:
 
         # 初始化最优路径点
         self.best_path_points: list[tuple[float, float, float]] = [start_point]
+        self.destination = destination
 
     def plot_terrain_and_best_path(self, mark_waypoints: bool = True) -> None:
-        """绘制地形和最优路径"""
+        """
+        绘制地形和最优路径
+
+        Args:
+            mark_waypoints: 是否标记途经点. Defaults to True.
+        """
+        # 追加终点并对点坐标排序
+        self.best_path_points.append(self.destination)
+        self.best_path_points.sort(key=lambda p: p[0] + p[1] + p[2])
+
         # 绘制地形
         fig = plt.figure(figsize=(10, 8))
         axes3d = cast(Axes3D, fig.add_subplot(111, projection="3d"))
-        surface = axes3d.plot_surface(self.x_grid, self.y_grid, self.z_grid, cmap="viridis")
+        surface = axes3d.plot_surface(self.x_grid, self.y_grid, self.z_grid, cmap="viridis", alpha=0.6)
         fig.colorbar(surface, shrink=0.5, aspect=5)
 
         # 标记路径点
@@ -70,10 +90,19 @@ class PathPlanner3D:
         axes3d.set_xlabel("X")
         axes3d.set_ylabel("Y")
         axes3d.set_zlabel("Z")
+        axes3d.legend()
         plt.show()
 
     def plan_best_path(self, positions: np.ndarray) -> np.ndarray:
-        """规划最优路径"""
+        """
+        PSO算法目标函数：计算粒子路径成本，规划最优路径点
+
+        Args:
+            positions: 粒子位置数组，形状为 (num_particles, num_dimensions)
+
+        Returns:
+            粒子路径成本数组，形状为 (num_particles,)
+        """
         # 初始化粒子路径成本
         costs = np.zeros(positions.shape[0])
 
@@ -126,9 +155,11 @@ if __name__ == "__main__":
         cognitive_coefficient=1.6,
         social_coefficient=1.8,
     )
+
     path_planner = PathPlanner3D(
         algorithm_args=pso_args,
         start_point=(0, 0, 0),
+        destination=(100, 100, 1),
         peaks=[
             Peak(center_x=20, center_y=20, amplitude=6, width=6),
             Peak(center_x=20, center_y=60, amplitude=7, width=7),
@@ -136,10 +167,12 @@ if __name__ == "__main__":
             Peak(center_x=80, center_y=60, amplitude=5, width=8),
         ],
     )
+
     pso_optimizer = ParticleSwarmOptimizer(
         args=pso_args,
         problem_type=ProblemType.MIN,
         objective_function=path_planner.plan_best_path,
     )
+
     pso_optimizer.start_iterating()
     path_planner.plot_terrain_and_best_path()
