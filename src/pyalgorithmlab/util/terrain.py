@@ -1,4 +1,5 @@
 import numpy as np
+from scipy.ndimage import gaussian_filter
 
 from pyalgorithmlab.util.model.peak import Peak
 
@@ -17,11 +18,19 @@ def generate_simulated_mountain_peaks(x_grid: np.ndarray, y_grid: np.ndarray, pe
     """
     # 初始化Z网格
     z_grid = np.zeros_like(x_grid)
+
     # 生成每个山峰的山脉地形
     for peak in peaks:
         z_grid += peak.amplitude * np.exp(
             -((x_grid - peak.center_x) ** 2 + (y_grid - peak.center_y) ** 2) / (2 * peak.width**2)
         )
+
+    # 添加一些随机噪声和基础波动，增强山峰的真实性
+    z_grid += 0.2 * np.sin(0.5 * np.sqrt(x_grid**2 + y_grid**2)) + 0.1 * np.random.normal(size=x_grid.shape)
+
+    # 使用高斯滤波，保持山峰独立性的同时也保证平滑性
+    z_grid = gaussian_filter(z_grid, sigma=3)
+
     return z_grid
 
 

@@ -137,5 +137,5 @@ class ParticleSwarmOptimizer:
             self._update_individual_best()
             self._update_global_best()
             best_fitness_values.append(self.global_best_fitness)
-        logger.success(f"PSO算法迭代结束，当前最优适应度为{self.global_best_fitness}")
+        logger.success(f"PSO算法迭代结束，当前最优适应度为{self.global_best_fitness:.6f}")
         return best_fitness_values
