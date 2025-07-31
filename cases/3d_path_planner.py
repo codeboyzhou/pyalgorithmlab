@@ -8,7 +8,8 @@ from scipy.interpolate import make_interp_spline
 
 from pyalgorithmlab.pso.core import ParticleSwarmOptimizer
 from pyalgorithmlab.pso.types import AlgorithmArguments, ProblemType
-from pyalgorithmlab.util import terrain
+from pyalgorithmlab.pso.util import plot
+from pyalgorithmlab.util import ndarrays, terrain
 from pyalgorithmlab.util.model.peak import Peak
 
 
@@ -39,9 +40,12 @@ class PathPlanner3D:
         # 生成模拟的山脉地形
         self.z_grid = terrain.generate_simulated_mountain_peaks(self.x_grid, self.y_grid, peaks)
 
+        # 初始化起点和终点
+        self.start_point = start_point
+        self.destination = destination
+
         # 初始化最优路径点
         self.best_path_points: list[tuple[float, float, float]] = [start_point]
-        self.destination = destination
 
     def plot_terrain_and_best_path(self, mark_waypoints: bool = True) -> None:
         """
@@ -93,7 +97,7 @@ class PathPlanner3D:
         axes3d.legend()
         plt.show()
 
-    def plan_best_path(self, positions: np.ndarray) -> np.ndarray:
+    def calculate_best_path_costs(self, positions: np.ndarray) -> np.ndarray:
         """
         PSO算法目标函数：计算粒子路径成本，规划最优路径点
 
@@ -105,6 +109,16 @@ class PathPlanner3D:
         """
         # 初始化粒子路径成本
         costs = np.zeros(positions.shape[0])
+
+        # 计算粒子到终点的距离作为先天性成本
+        distance_to_destination_costs = np.linalg.norm(positions - self.destination, axis=1)
+        costs += ndarrays.min_max_normalize(np.array(distance_to_destination_costs))
+
+        # 以起点和终点连成一条直线，计算到这条直线的距离作为路径偏离成本
+        path_deviation_costs = ndarrays.point_to_line_distance(
+            positions, np.array(self.start_point), np.array(self.destination)
+        )
+        costs += ndarrays.min_max_normalize(path_deviation_costs)
 
         # 选择成本最小的点
         best_point_index = np.argmin(costs)
@@ -171,8 +185,9 @@ if __name__ == "__main__":
     pso_optimizer = ParticleSwarmOptimizer(
         args=pso_args,
         problem_type=ProblemType.MIN,
-        objective_function=path_planner.plan_best_path,
+        objective_function=path_planner.calculate_best_path_costs,
     )
 
-    pso_optimizer.start_iterating()
+    best_fitness_values = pso_optimizer.start_iterating()
+    plot.plot_fitness_change_curve(best_fitness_values)
     path_planner.plot_terrain_and_best_path()
