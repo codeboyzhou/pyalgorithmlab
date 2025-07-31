@@ -3,38 +3,37 @@ import numpy as np
 from pyalgorithmlab.util.model.peak import Peak
 
 
-def generate_simulated_mountain_peaks(gridx: np.ndarray, gridy: np.ndarray, peaks: list[Peak]) -> np.ndarray:
+def generate_simulated_mountain_peaks(x_grid: np.ndarray, y_grid: np.ndarray, peaks: list[Peak]) -> np.ndarray:
     """
-    生成模拟的山脉地形
+    生成模拟山峰的地形图在Z网格的坐标
 
     Args:
-        gridx: 网格x坐标
-        gridy: 网格y坐标
-        peaks: 山峰列表
+        x_grid: X网格坐标
+        y_grid: Y网格坐标
+        peaks: 山峰参数列表
 
     Returns:
-        模拟的山脉地形
+        生成的地形图在Z网格的坐标
     """
-    # 初始化山脉地形
-    mountain_terrain = np.zeros_like(gridx)
+    # 初始化Z网格
+    z_grid = np.zeros_like(x_grid)
     # 生成每个山峰的山脉地形
     for peak in peaks:
-        # 计算当前山峰对网格的影响
-        mountain_terrain += peak.amplitude * np.exp(
-            -((gridx - peak.center_x) ** 2 + (gridy - peak.center_y) ** 2) / (2 * peak.width**2)
+        z_grid += peak.amplitude * np.exp(
+            -((x_grid - peak.center_x) ** 2 + (y_grid - peak.center_y) ** 2) / (2 * peak.width**2)
         )
-    return mountain_terrain
+    return z_grid
 
 
 def is_collision_detected(point: np.ndarray, x_grid: np.ndarray, y_grid: np.ndarray, z_grid: np.ndarray) -> bool:
     """
-    检测空间中的某个点 (x, y, z) 是否与高度场发生了碰撞
+    检测点是否与地形碰撞
 
     Args:
-        point (np.ndarray): 待检测的点的坐标 (x, y, z)
-        x_grid (np.ndarray): X平面网格
-        y_grid (np.ndarray): Y平面网格
-        z_grid (np.ndarray): Z平面网格
+        point: 待检测的点的坐标 (x, y, z)
+        x_grid: X网格坐标
+        y_grid: Y网格坐标
+        z_grid: Z网格坐标
 
     Returns:
         bool: 如果发生碰撞则返回True，否则返回False

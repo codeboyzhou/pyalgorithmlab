@@ -1,6 +1,9 @@
+from typing import cast
+
 import matplotlib.pyplot as plt
 import numpy as np
 from loguru import logger
+from mpl_toolkits.mplot3d import Axes3D
 from scipy.interpolate import make_interp_spline
 
 from pyalgorithmlab.pso.core import ParticleSwarmOptimizer
@@ -10,6 +13,7 @@ from pyalgorithmlab.util.model.peak import Peak
 
 
 class PathPlanner3D:
+    """这是一个借助PSO算法实现3D路径规划的案例"""
 
     def __init__(
         self,
@@ -18,25 +22,19 @@ class PathPlanner3D:
         peaks: list[Peak],
     ) -> None:
         # 初始化坐标网格
-        x = np.linspace(
-            algorithm_args.position_bounds_min, algorithm_args.position_bounds_max, 100
-        )
-        y = np.linspace(
-            algorithm_args.position_bounds_min, algorithm_args.position_bounds_max, 100
-        )
-        self.gridx, self.gridy = np.meshgrid(x, y)
+        x = np.linspace(algorithm_args.position_bounds_min, algorithm_args.position_bounds_max, 100)
+        y = np.linspace(algorithm_args.position_bounds_min, algorithm_args.position_bounds_max, 100)
+        self.x_grid, self.y_grid = np.meshgrid(x, y)
         # 生成模拟的山脉地形
-        self.gridz = terrain.generate_simulated_mountain_peaks(
-            self.gridx, self.gridy, peaks
-        )
+        self.z_grid = terrain.generate_simulated_mountain_peaks(self.x_grid, self.y_grid, peaks)
         # 初始化最优路径点
         self.best_path_points: list[tuple[float, float, float]] = [start_point]
 
-    def plot_terrain(self) -> plt.Axes:
+    def plot_terrain(self) -> Axes3D:
         """绘制地形"""
         fig = plt.figure(figsize=(10, 8))
-        axes = fig.add_subplot(111, projection="3d")
-        surface = axes.plot_surface(self.gridx, self.gridy, self.gridz, cmap="viridis")
+        axes = cast(Axes3D, fig.add_subplot(111, projection="3d"))
+        surface = axes.plot_surface(self.x_grid, self.y_grid, self.z_grid, cmap="viridis")
         fig.colorbar(surface, shrink=0.5, aspect=5)
         axes.view_init(elev=30, azim=240)
         axes.set_xlabel("X")
@@ -45,38 +43,21 @@ class PathPlanner3D:
         plt.show()
         return axes
 
-    def plot_path(self, ax: plt.Axes, mark_waypoints: bool = True) -> None:
+    def plot_path(self, axes: Axes3D, mark_waypoints: bool = True) -> None:
         """绘制路径"""
         # 标记路径点
         for i, point in enumerate(self.best_path_points):
             px, py, pz = point[0], point[1], point[2]
             # 起点
             if i == 0:
-                ax.scatter(
-                    px, py, pz, c="green", s=100, marker="o", label="Starting Point"
-                )
+                axes.scatter(px, py, int(pz), c="green", s=100, marker="o", label="Starting Point")
             # 终点
             elif i == len(self.best_path_points) - 1:
-                ax.scatter(px, py, pz, c="red", s=100, marker="*", label="Destination")
+                axes.scatter(px, py, int(pz), c="red", s=100, marker="*", label="Destination")
             # 途经点
             elif mark_waypoints:
-                ax.scatter(
-                    px,
-                    py,
-                    pz,
-                    c="orange",
-                    s=100,
-                    marker="^",
-                    label="Waypoint" if i == 1 else None,
-                )
-                ax.text(
-                    x=px + 0.2,
-                    y=py + 0.2,
-                    z=pz + 0.2,
-                    color="red",
-                    s=f"P{i}",
-                    fontsize=10,
-                )
+                axes.scatter(px, py, int(pz), c="orange", s=100, marker="^", label="Waypoint" if i == 1 else None)
+                axes.text(x=px + 0.2, y=py + 0.2, z=pz + 0.2, color="red", s=f"P{i}", fontsize=10)
 
         # 使用三阶B样条曲线绘制平滑路径
         np_best_path_points = np.array(self.best_path_points)
@@ -104,33 +85,25 @@ class PathPlanner3D:
         best_point = positions[best_point_index]
 
         # 碰撞点纠偏
-        while terrain.is_collision_detected(
-            np.array(best_point), self.gridx, self.gridy, self.gridz
-        ):
+        while terrain.is_collision_detected(np.array(best_point), self.x_grid, self.y_grid, self.z_grid):
             logger.warning(f"当前点 {best_point} 会与地形发生碰撞，尝试向 -x 方向纠偏")
             best_point[0] -= 1
             if best_point[0] < 0:
                 best_point[0] = 0
                 break
-        while terrain.is_collision_detected(
-            np.array(best_point), self.gridx, self.gridy, self.gridz
-        ):
+        while terrain.is_collision_detected(np.array(best_point), self.x_grid, self.y_grid, self.z_grid):
             logger.warning(f"当前点 {best_point} 会与地形发生碰撞，尝试向 +x 方向纠偏")
             best_point[0] += 1
             if best_point[0] > 100:
                 best_point[0] = 100
                 break
-        while terrain.is_collision_detected(
-            np.array(best_point), self.gridx, self.gridy, self.gridz
-        ):
+        while terrain.is_collision_detected(np.array(best_point), self.x_grid, self.y_grid, self.z_grid):
             logger.warning(f"当前点 {best_point} 会与地形发生碰撞，尝试向 -y 方向纠偏")
             best_point[1] -= 1
             if best_point[1] < 0:
                 best_point[1] = 0
                 break
-        while terrain.is_collision_detected(
-            np.array(best_point), self.gridx, self.gridy, self.gridz
-        ):
+        while terrain.is_collision_detected(np.array(best_point), self.x_grid, self.y_grid, self.z_grid):
             logger.warning(f"当前点 {best_point} 会与地形发生碰撞，尝试向 +y 方向纠偏")
             best_point[1] += 1
             if best_point[1] > 100:
@@ -156,9 +129,7 @@ if __name__ == "__main__":
         cognitive_coefficient=1.6,
         social_coefficient=1.8,
     )
-    path_planner = PathPlanner3D(
-        algorithm_args=pso_args, start_point=(0, 0, 0), peaks=[]
-    )
+    path_planner = PathPlanner3D(algorithm_args=pso_args, start_point=(0, 0, 0), peaks=[])
     pso_optimizer = ParticleSwarmOptimizer(
         args=pso_args,
         problem_type=ProblemType.MIN,

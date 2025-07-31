@@ -2,7 +2,7 @@ from pydantic import BaseModel
 
 
 class Peak(BaseModel):
-    """三维路径规划中的山峰参数定义"""
+    """三维路径规划中的模拟山峰参数定义"""
 
     center_x: float
     """山峰中心的x坐标"""

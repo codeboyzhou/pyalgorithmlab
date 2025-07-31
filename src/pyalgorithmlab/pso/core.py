@@ -51,7 +51,12 @@ class ParticleSwarmOptimizer:
         logger.success("PSO算法初始化成功")
 
     def _update_velocities(self, current_iteration: int) -> None:
-        """更新粒子速度"""
+        """
+        更新粒子速度
+
+        Args:
+            current_iteration: 当前迭代次数
+        """
         # 线性递减惯性权重
         inertia_weight = self.args.inertia_weight_max - (
             self.args.inertia_weight_max - self.args.inertia_weight_min
@@ -96,14 +101,32 @@ class ParticleSwarmOptimizer:
             else np.argmax(self.individual_best_fitness)
         )
         individual_best_fitness = self.individual_best_fitness[best_individual_index]
-        compare_best_fitness = lambda x, y: (x < y if self.problem_type == ProblemType.MIN else lambda xx, yy: xx > yy)
 
-        if compare_best_fitness(individual_best_fitness, self.global_best_fitness):
+        if self._compare_best_fitness(individual_best_fitness, self.global_best_fitness):
             self.global_best_fitness = individual_best_fitness
             self.global_best_positions = self.individual_best_positions[best_individual_index]
 
+    def _compare_best_fitness(self, x, y):
+        """
+        根据问题类型比较两个适应度值
+
+        Args:
+            x: 第一个适应度值
+            y: 第二个适应度值
+
+        Returns:
+            如果问题是最小化问题，返回 x < y
+            如果问题是最大化问题，返回 x > y
+        """
+        return x < y if self.problem_type == ProblemType.MIN else x > y
+
     def start_iterating(self) -> list[float]:
-        """开始执行算法迭代"""
+        """
+        开始执行算法迭代
+
+        Returns:
+            每次迭代后的最优适应度，全部记录下来用于绘制迭代曲线
+        """
         best_fitness_values = []  # 每次迭代后的最优适应度，全部记录下来用于绘制迭代曲线
         for iteration in range(self.args.max_iterations):
             if convergence.is_converged(best_fitness_values):
