@@ -33,7 +33,7 @@ class ParticleSwarmOptimizer:
             args.position_bounds_min, args.position_bounds_max, shape
         )
         self.velocities = np.random.uniform(
-            -args.velocity_bounds_max, args.velocity_bounds_max, shape
+            -args.velocity_bound_max, args.velocity_bound_max, shape
         )
 
         self.individual_best_positions = self.positions.copy()
@@ -55,12 +55,17 @@ class ParticleSwarmOptimizer:
 
         logger.success("PSO算法初始化成功")
 
-    def _update_velocities(self) -> None:
+    def _update_velocities(self, current_iteration: int) -> None:
         """更新粒子速度"""
+        # 线性递减惯性权重
+        inertia_weight = self.args.inertia_weight_max - (
+            self.args.inertia_weight_max - self.args.inertia_weight_min
+        ) * (current_iteration / self.args.max_iterations)
+        # 计算速度更新
         r1 = np.random.rand(self.args.num_particles, self.args.num_dimensions)
         r2 = np.random.rand(self.args.num_particles, self.args.num_dimensions)
         self.velocities = (
-            self.args.inertia_weight * self.velocities
+            inertia_weight * self.velocities
             + self.args.cognitive_coefficient
             * r1
             * (self.individual_best_positions - self.positions)
@@ -71,8 +76,8 @@ class ParticleSwarmOptimizer:
         # 限制速度边界
         self.velocities = np.clip(
             self.velocities,
-            -self.args.velocity_bounds_max,
-            self.args.velocity_bounds_max,
+            -self.args.velocity_bound_max,
+            self.args.velocity_bound_max,
         )
 
     def _update_positions(self) -> None:
@@ -113,12 +118,6 @@ class ParticleSwarmOptimizer:
                 best_individual_index
             ]
 
-    def _decrease_inertia_weight(self, current_iteration: int) -> None:
-        """线性递减惯性权重"""
-        self.args.inertia_weight = self.args.inertia_weight_max - (
-            self.args.inertia_weight_max - self.args.inertia_weight_min
-        ) * (current_iteration / self.args.max_iterations)
-
     def start_iterating(self) -> list[float]:
         """开始执行算法迭代"""
         best_fitness_values = []  # 每次迭代后的最优适应度，全部记录下来用于绘制迭代曲线
@@ -126,11 +125,10 @@ class ParticleSwarmOptimizer:
             if convergence.is_converged(best_fitness_values):
                 logger.success(f"PSO算法在第{iteration}次迭代后已经收敛")
                 break
-            self._update_velocities()
+            self._update_velocities(iteration)
             self._update_positions()
             self._update_individual_best()
             self._update_global_best()
-            self._decrease_inertia_weight(iteration)
             best_fitness_values.append(self.global_best_fitness)
         logger.success(f"PSO算法迭代结束，当前最优适应度为{self.global_best_fitness}")
         return best_fitness_values
