@@ -3,9 +3,7 @@ import numpy as np
 from pyalgorithmlab.util.model.peak import Peak
 
 
-def generate_simulated_mountain_peaks(
-    gridx: np.ndarray, gridy: np.ndarray, peaks: list[Peak]
-) -> np.ndarray:
+def generate_simulated_mountain_peaks(gridx: np.ndarray, gridy: np.ndarray, peaks: list[Peak]) -> np.ndarray:
     """
     生成模拟的山脉地形
 
@@ -23,15 +21,12 @@ def generate_simulated_mountain_peaks(
     for peak in peaks:
         # 计算当前山峰对网格的影响
         mountain_terrain += peak.amplitude * np.exp(
-            -((gridx - peak.center_x) ** 2 + (gridy - peak.center_y) ** 2)
-            / (2 * peak.width**2)
+            -((gridx - peak.center_x) ** 2 + (gridy - peak.center_y) ** 2) / (2 * peak.width**2)
         )
     return mountain_terrain
 
 
-def is_collision_detected(
-    point: np.ndarray, x_grid: np.ndarray, y_grid: np.ndarray, z_grid: np.ndarray
-) -> bool:
+def is_collision_detected(point: np.ndarray, x_grid: np.ndarray, y_grid: np.ndarray, z_grid: np.ndarray) -> bool:
     """
     检测空间中的某个点 (x, y, z) 是否与高度场发生了碰撞
 

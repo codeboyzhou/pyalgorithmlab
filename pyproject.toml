@@ -9,10 +9,24 @@ dependencies = [
     "matplotlib>=3.10.3",
     "numpy>=2.3.2",
     "pydantic>=2.11.7",
-    "pytest>=8.4.1",
     "scipy>=1.16.1",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4.1",
+    "ruff>=0.12.7",
 ]
 
 [[tool.uv.index]]
 url = "https://pypi.tuna.tsinghua.edu.cn/simple"
 default = true
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+extend-exclude = ["README.md"]
+
+[tool.ruff.lint]
+select = ["C4", "E", "F", "I", "PERF", "UP"]
+ignore = ["PERF203"]

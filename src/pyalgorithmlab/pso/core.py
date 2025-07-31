@@ -1,4 +1,4 @@
-from typing import Callable
+from collections.abc import Callable
 
 import numpy as np
 from loguru import logger
@@ -29,12 +29,8 @@ class ParticleSwarmOptimizer:
         logger.success(f"初始化PSO算法，使用以下参数：{args.model_dump_json(indent=4)}")
 
         shape = (args.num_particles, args.num_dimensions)
-        self.positions = np.random.uniform(
-            args.position_bounds_min, args.position_bounds_max, shape
-        )
-        self.velocities = np.random.uniform(
-            -args.velocity_bound_max, args.velocity_bound_max, shape
-        )
+        self.positions = np.random.uniform(args.position_bounds_min, args.position_bounds_max, shape)
+        self.velocities = np.random.uniform(-args.velocity_bound_max, args.velocity_bound_max, shape)
 
         self.individual_best_positions = self.positions.copy()
         self.individual_best_fitness = objective_function(self.positions)
@@ -45,9 +41,7 @@ class ParticleSwarmOptimizer:
             else np.argmax(self.individual_best_fitness)
         )
 
-        self.global_best_positions = self.individual_best_positions[
-            best_individual_index
-        ]
+        self.global_best_positions = self.individual_best_positions[best_individual_index]
         self.global_best_fitness = self.individual_best_fitness[best_individual_index]
 
         self.args = args
@@ -67,12 +61,8 @@ class ParticleSwarmOptimizer:
         r2 = np.random.rand(self.args.num_particles, self.args.num_dimensions)
         self.velocities = (
             inertia_weight * self.velocities
-            + self.args.cognitive_coefficient
-            * r1
-            * (self.individual_best_positions - self.positions)
-            + self.args.social_coefficient
-            * r2
-            * (self.global_best_positions - self.positions)
+            + self.args.cognitive_coefficient * r1 * (self.individual_best_positions - self.positions)
+            + self.args.social_coefficient * r2 * (self.global_best_positions - self.positions)
         )
         # 限制速度边界
         self.velocities = np.clip(
@@ -85,9 +75,7 @@ class ParticleSwarmOptimizer:
         """更新粒子位置"""
         self.positions += self.velocities
         # 限制位置边界
-        self.positions = np.clip(
-            self.positions, self.args.position_bounds_min, self.args.position_bounds_max
-        )
+        self.positions = np.clip(self.positions, self.args.position_bounds_min, self.args.position_bounds_max)
 
     def _update_individual_best(self) -> None:
         """更新个体最优解"""
@@ -107,20 +95,12 @@ class ParticleSwarmOptimizer:
             if self.problem_type == ProblemType.MIN
             else np.argmax(self.individual_best_fitness)
         )
-        compare_best_fitness = lambda x, y: (
-            x < y if self.problem_type == ProblemType.MIN else lambda xx, yy: xx > yy
-        )
+        individual_best_fitness = self.individual_best_fitness[best_individual_index]
+        compare_best_fitness = lambda x, y: (x < y if self.problem_type == ProblemType.MIN else lambda xx, yy: xx > yy)
 
-        if compare_best_fitness(
-            self.individual_best_fitness[best_individual_index],
-            self.global_best_fitness,
-        ):
-            self.global_best_fitness = self.individual_best_fitness[
-                best_individual_index
-            ]
-            self.global_best_positions = self.individual_best_positions[
-                best_individual_index
-            ]
+        if compare_best_fitness(individual_best_fitness, self.global_best_fitness):
+            self.global_best_fitness = individual_best_fitness
+            self.global_best_positions = self.individual_best_positions[best_individual_index]
 
     def start_iterating(self) -> list[float]:
         """开始执行算法迭代"""
