@@ -3,7 +3,7 @@ from typing import Callable
 import numpy as np
 from loguru import logger
 
-from pyalgorithmlab.pso.types import AlgorithmArguments
+from pyalgorithmlab.pso.types import AlgorithmArguments, ProblemType
 from pyalgorithmlab.util import convergence
 
 
@@ -13,6 +13,7 @@ class ParticleSwarmOptimizer:
     def __init__(
         self,
         args: AlgorithmArguments,
+        problem_type: ProblemType,
         objective_function: Callable[[np.ndarray], np.ndarray],
     ) -> None:
         """
@@ -20,6 +21,7 @@ class ParticleSwarmOptimizer:
 
         Args:
             args: 算法参数
+            problem_type: 问题类型
             objective_function: 待优化问题的目标函数
                 接受一个形状为 (num_particles, num_dimensions) 的 numpy 数组，表示每个粒子的位置
                 返回一个形状为 (num_particles,) 的 numpy 数组，表示每个粒子的适应度值
@@ -37,13 +39,18 @@ class ParticleSwarmOptimizer:
         self.individual_best_positions = self.positions.copy()
         self.individual_best_fitness = objective_function(self.positions)
 
-        best_individual_index = np.argmin(self.individual_best_fitness)
+        if problem_type == ProblemType.MIN:
+            best_individual_index = np.argmin(self.individual_best_fitness)
+        elif problem_type == ProblemType.MAX:
+            best_individual_index = np.argmax(self.individual_best_fitness)
+
         self.global_best_positions = self.individual_best_positions[
             best_individual_index
         ]
         self.global_best_fitness = self.individual_best_fitness[best_individual_index]
 
         self.args = args
+        self.problem_type = problem_type
         self.objective_function = objective_function
 
         logger.success("PSO算法初始化成功")
@@ -79,16 +86,25 @@ class ParticleSwarmOptimizer:
     def _update_individual_best(self) -> None:
         """更新个体最优解"""
         fitness = self.objective_function(self.positions)
-        better_indices = fitness < self.individual_best_fitness
+        if self.problem_type == ProblemType.MIN:
+            better_indices = fitness < self.individual_best_fitness
+        elif self.problem_type == ProblemType.MAX:
+            better_indices = fitness > self.individual_best_fitness
         self.individual_best_fitness[better_indices] = fitness[better_indices]
         self.individual_best_positions[better_indices] = self.positions[better_indices]
 
     def _update_global_best(self) -> None:
         """更新全局最优解"""
-        best_individual_index = np.argmin(self.individual_best_fitness)
-        if (
-            self.individual_best_fitness[best_individual_index]
-            < self.global_best_fitness
+        if self.problem_type == ProblemType.MIN:
+            best_individual_index = np.argmin(self.individual_best_fitness)
+            compare_best_fitness = lambda x, y: x < y
+        elif self.problem_type == ProblemType.MAX:
+            best_individual_index = np.argmax(self.individual_best_fitness)
+            compare_best_fitness = lambda x, y: x > y
+
+        if compare_best_fitness(
+            self.individual_best_fitness[best_individual_index],
+            self.global_best_fitness,
         ):
             self.global_best_fitness = self.individual_best_fitness[
                 best_individual_index
