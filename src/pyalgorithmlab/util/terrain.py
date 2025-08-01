@@ -47,21 +47,21 @@ def is_collision_detected(point: np.ndarray, x_grid: np.ndarray, y_grid: np.ndar
     Returns:
         bool: 如果发生碰撞则返回True，否则返回False
     """
-    x, y, z = point[0], point[1], point[2]
-
-    # 边界值处理，高度为0，无需考虑碰撞
-    if z == 0:
-        return False
-
     # 获取网格的实际坐标值范围
     x_vals = np.unique(x_grid)
     y_vals = np.unique(y_grid)
     x_min, x_max = x_vals.min(), x_vals.max()
     y_min, y_max = y_vals.min(), y_vals.max()
 
+    x, y, z = point[0], point[1], point[2]
+
     # 超出地形范围视为碰撞
     if x < x_min or x > x_max or y < y_min or y > y_max:
         return True
+
+    # 在边界点上视为不碰撞
+    if x == x_min or x == x_max or y == y_min or y == y_max or z == 0:
+        return False
 
     # 计算实际坐标步长并获取网格索引
     x_step = x_vals[1] - x_vals[0]

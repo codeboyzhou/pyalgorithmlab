@@ -32,6 +32,8 @@ class PathPlanner3D:
             destination: 终点坐标
             peaks: 山脉峰值列表
         """
+        self.algorithm_args = algorithm_args
+
         # 初始化坐标网格
         x = np.linspace(algorithm_args.position_bounds_min[0], algorithm_args.position_bounds_max[0], 100)
         y = np.linspace(algorithm_args.position_bounds_min[1], algorithm_args.position_bounds_max[1], 100)
@@ -110,15 +112,34 @@ class PathPlanner3D:
         # 初始化粒子路径成本
         costs = np.zeros(positions.shape[0])
 
-        # 计算粒子到终点的距离作为先天性成本
-        distance_to_destination_costs = np.linalg.norm(positions - self.destination, axis=1)
-        costs += ndarrays.min_max_normalize(np.array(distance_to_destination_costs))
+        # 定义惩罚权重
+        iteration = len(self.best_path_points) - 1
+        iteration_progress = iteration / self.algorithm_args.max_iterations
+        distance_to_destination_weight = 0.1 + 0.4 * iteration_progress
+        point_deviation_weight = 0.6 - 0.3 * iteration_progress
+        point_gathering_weight = 0.2 + 0.2 * np.exp(-5 * iteration_progress)
+        terrain_collision_weight = 0.6 - 0.2 * iteration_progress
 
-        # 以起点和终点连成一条直线，计算到这条直线的距离作为路径偏离成本
-        path_deviation_costs = ndarrays.point_to_line_distance(
+        # 终点距离成本
+        distance_to_destination_costs = np.linalg.norm(positions - self.destination, axis=1)
+        costs += ndarrays.min_max_normalize(np.array(distance_to_destination_costs)) * distance_to_destination_weight
+
+        # 粒子偏离成本
+        point_deviation_costs = ndarrays.point_to_line_distance(
             positions, np.array(self.start_point), np.array(self.destination)
         )
-        costs += ndarrays.min_max_normalize(path_deviation_costs)
+        costs += ndarrays.min_max_normalize(point_deviation_costs) * point_deviation_weight
+
+        # 粒子聚集成本
+        previous_point = np.array(self.best_path_points[-1])
+        point_gathering_costs = np.linalg.norm(positions - previous_point, axis=1)
+        costs += ndarrays.min_max_normalize(point_gathering_costs) * point_gathering_weight
+
+        # 地形碰撞成本
+        terrain_collision_costs = np.array(
+            [1 if terrain.is_collision_detected(p, self.x_grid, self.y_grid, self.z_grid) else 0 for p in positions]
+        )
+        costs += terrain_collision_costs * terrain_collision_weight
 
         # 选择成本最小的点
         best_point_index = np.argmin(costs)
