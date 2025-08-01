@@ -115,10 +115,10 @@ class PathPlanner3D:
         # 定义惩罚权重
         iteration = len(self.best_path_points) - 1
         iteration_progress = iteration / self.algorithm_args.max_iterations
-        distance_to_destination_weight = 0.1 + 0.4 * iteration_progress
-        point_deviation_weight = 0.6 - 0.3 * iteration_progress
-        point_gathering_weight = 0.2 + 0.2 * np.exp(-5 * iteration_progress)
-        terrain_collision_weight = 0.6 - 0.2 * iteration_progress
+        distance_to_destination_weight = 0.1 + 0.3 * iteration_progress
+        point_deviation_weight = 0.4 - 0.1 * (iteration_progress**3)
+        point_gathering_weight = 0.1 + 0.4 * iteration_progress
+        terrain_collision_weight = 0.7 + 0.3 * iteration_progress
 
         # 终点距离成本
         distance_to_destination_costs = np.linalg.norm(positions - self.destination, axis=1)
@@ -185,10 +185,10 @@ if __name__ == "__main__":
         position_bounds_min=(0, 0, 0),
         position_bounds_max=(100, 100, 1),
         velocity_bound_max=1,
-        inertia_weight_max=2,
+        inertia_weight_max=1.8,
         inertia_weight_min=0.5,
         cognitive_coefficient=1.6,
-        social_coefficient=1.8,
+        social_coefficient=1.2,
     )
 
     path_planner = PathPlanner3D(
