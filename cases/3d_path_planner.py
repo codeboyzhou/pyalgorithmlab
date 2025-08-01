@@ -2,8 +2,8 @@ from typing import cast
 
 import matplotlib.pyplot as plt
 import numpy as np
-from loguru import logger
 from mpl_toolkits.mplot3d import Axes3D
+from numpy import ndarray
 from scipy.interpolate import make_interp_spline
 
 from pyalgorithmlab.pso.core import ParticleSwarmOptimizer
@@ -99,6 +99,47 @@ class PathPlanner3D:
         axes3d.legend()
         plt.show()
 
+    def correct_collision_points(self, point: np.ndarray) -> ndarray:
+        """
+        纠偏碰撞点
+
+        Args:
+            point: 碰撞点坐标
+
+        Returns:
+            纠偏后的碰撞点坐标
+        """
+        x_min = np.min(self.x_grid)
+        x_max = np.max(self.x_grid)
+        y_min = np.min(self.y_grid)
+        y_max = np.max(self.y_grid)
+
+        while terrain.is_point_collision_detected(point, self.x_grid, self.y_grid, self.z_grid):
+            point[0] -= 1
+            if point[0] < x_min:
+                point[0] = x_min
+                break
+
+        while terrain.is_point_collision_detected(point, self.x_grid, self.y_grid, self.z_grid):
+            point[0] += 1
+            if point[0] > x_max:
+                point[0] = x_max
+                break
+
+        while terrain.is_point_collision_detected(point, self.x_grid, self.y_grid, self.z_grid):
+            point[1] -= 1
+            if point[1] < y_min:
+                point[1] = y_min
+                break
+
+        while terrain.is_point_collision_detected(point, self.x_grid, self.y_grid, self.z_grid):
+            point[1] += 1
+            if point[1] > y_max:
+                point[1] = y_max
+                break
+
+        return point
+
     def calculate_best_path_costs(self, positions: np.ndarray) -> np.ndarray:
         """
         PSO算法目标函数：计算粒子路径成本，规划最优路径点
@@ -137,42 +178,34 @@ class PathPlanner3D:
 
         # 地形碰撞成本
         terrain_collision_costs = np.array(
-            [1 if terrain.is_collision_detected(p, self.x_grid, self.y_grid, self.z_grid) else 0 for p in positions]
+            [
+                1 if terrain.is_point_collision_detected(p, self.x_grid, self.y_grid, self.z_grid) else 0
+                for p in positions
+            ]
         )
         costs += terrain_collision_costs * terrain_collision_weight
 
         # 选择成本最小的点
         best_point_index = np.argmin(costs)
         best_point = positions[best_point_index]
+        current_best_point = np.array(best_point)
 
         # 碰撞点纠偏
-        while terrain.is_collision_detected(np.array(best_point), self.x_grid, self.y_grid, self.z_grid):
-            logger.warning(f"当前点 {best_point} 会与地形发生碰撞，尝试向 -x 方向纠偏")
-            best_point[0] -= 1
-            if best_point[0] < 0:
-                best_point[0] = 0
-                break
-        while terrain.is_collision_detected(np.array(best_point), self.x_grid, self.y_grid, self.z_grid):
-            logger.warning(f"当前点 {best_point} 会与地形发生碰撞，尝试向 +x 方向纠偏")
-            best_point[0] += 1
-            if best_point[0] > 100:
-                best_point[0] = 100
-                break
-        while terrain.is_collision_detected(np.array(best_point), self.x_grid, self.y_grid, self.z_grid):
-            logger.warning(f"当前点 {best_point} 会与地形发生碰撞，尝试向 -y 方向纠偏")
-            best_point[1] -= 1
-            if best_point[1] < 0:
-                best_point[1] = 0
-                break
-        while terrain.is_collision_detected(np.array(best_point), self.x_grid, self.y_grid, self.z_grid):
-            logger.warning(f"当前点 {best_point} 会与地形发生碰撞，尝试向 +y 方向纠偏")
-            best_point[1] += 1
-            if best_point[1] > 100:
-                best_point[1] = 100
-                break
+        self.correct_collision_points(current_best_point)
 
-        best_x, best_y, best_z = best_point[0], best_point[1], best_point[2]
-        self.best_path_points.append((best_x.item(), best_y.item(), best_z.item()))
+        # 线段碰撞点纠偏
+        collision_points = terrain.is_line_collision_detected(
+            previous_point, current_best_point, self.x_grid, self.y_grid, self.z_grid
+        )
+        for point in collision_points:
+            corrected_collision_point = self.correct_collision_points(np.array(point))
+            cpx, cpy, cpz = corrected_collision_point[0], corrected_collision_point[1], corrected_collision_point[2]
+            self.best_path_points.append((cpx.item(), cpy.item(), cpz.item()))
+
+        # 如果没有碰撞点，直接添加当前最佳点
+        if len(collision_points) == 0:
+            best_x, best_y, best_z = best_point[0], best_point[1], best_point[2]
+            self.best_path_points.append((best_x.item(), best_y.item(), best_z.item()))
 
         return costs
 

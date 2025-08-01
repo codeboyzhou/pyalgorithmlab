@@ -34,12 +34,12 @@ def generate_simulated_mountain_peaks(x_grid: np.ndarray, y_grid: np.ndarray, pe
     return z_grid
 
 
-def is_collision_detected(point: np.ndarray, x_grid: np.ndarray, y_grid: np.ndarray, z_grid: np.ndarray) -> bool:
+def is_point_collision_detected(point: np.ndarray, x_grid: np.ndarray, y_grid: np.ndarray, z_grid: np.ndarray) -> bool:
     """
-    检测点是否与地形碰撞
+    检测空间中的某个点是否与地形碰撞
 
     Args:
-        point: 待检测的点的坐标 (x, y, z)
+        point: 待检测的点坐标
         x_grid: X网格坐标
         y_grid: Y网格坐标
         z_grid: Z网格坐标
@@ -77,3 +77,48 @@ def is_collision_detected(point: np.ndarray, x_grid: np.ndarray, y_grid: np.ndar
     result = z < (terrain_z + safety_margin)
 
     return result.item()
+
+
+def is_line_collision_detected(
+    line_start_point: np.ndarray,
+    line_end_point: np.ndarray,
+    x_grid: np.ndarray,
+    y_grid: np.ndarray,
+    z_grid: np.ndarray,
+    num_sample_points: int = 20,
+) -> list[tuple[float, float, float]]:
+    """
+    检测空间中的一条线段是否与地形碰撞
+
+    Args:
+        line_start_point: 线段起点坐标
+        line_end_point: 线段终点坐标
+        x_grid: X网格坐标
+        y_grid: Y网格坐标
+        z_grid: Z网格坐标
+        num_sample_points: 采样点数量
+
+    Returns:
+        list[tuple[float, float, float]]: 如果发生碰撞则返回碰撞点列表，否则返回空列表
+    """
+    # 计算线的长度
+    line_length = np.linalg.norm(line_end_point - line_start_point)
+
+    # 计算线的方向向量
+    line_direction = (line_end_point - line_start_point) / line_length
+
+    # 对线段进行点采样
+    step = line_length / num_sample_points
+
+    # 采样点碰撞检测
+    collision_points = []
+    # 排除起点本身
+    for i in range(1, num_sample_points + 1):
+        # 计算当前点的坐标
+        current_point = line_start_point + i * step * line_direction
+        # 检查当前点是否与地形碰撞
+        if is_point_collision_detected(current_point, x_grid, y_grid, z_grid):
+            x, y, z = current_point[0], current_point[1], current_point[2]
+            collision_points.append((x.item(), y.item(), z.item()))
+
+    return collision_points
