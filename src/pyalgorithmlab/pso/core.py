@@ -33,16 +33,10 @@ class ParticleSwarmOptimizer:
         self.velocities = np.random.uniform(-args.velocity_bound_max, args.velocity_bound_max, shape)
 
         self.individual_best_positions = self.positions.copy()
-        self.individual_best_fitness = objective_function(self.positions)
+        self.individual_best_fitness = np.ones(args.num_particles)
 
-        best_individual_index = (
-            np.argmin(self.individual_best_fitness)
-            if problem_type == ProblemType.MIN
-            else np.argmax(self.individual_best_fitness)
-        )
-
-        self.global_best_positions = self.individual_best_positions[best_individual_index]
-        self.global_best_fitness = self.individual_best_fitness[best_individual_index]
+        self.global_best_positions = self.individual_best_positions[0]
+        self.global_best_fitness = self.individual_best_fitness[0]
 
         self.args = args
         self.problem_type = problem_type
