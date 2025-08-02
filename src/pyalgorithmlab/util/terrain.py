@@ -60,7 +60,7 @@ def is_point_collision_detected(point: np.ndarray, x_grid: np.ndarray, y_grid: n
         return True
 
     # 在边界点上视为不碰撞
-    if x == x_min or x == x_max or y == y_min or y == y_max or z == 0:
+    if x == x_min or x == x_max or y == y_min or y == y_max:
         return False
 
     # 计算实际坐标步长并获取网格索引
