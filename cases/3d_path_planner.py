@@ -102,44 +102,63 @@ class PathPlanner3D:
         axes3d.legend()
         plt.show()
 
-    def correct_collision_point(self, point: np.ndarray) -> ndarray:
+    def correct_collision_point(self, point: np.ndarray, max_attempts: int = 100) -> ndarray:
         """
         纠偏碰撞点
 
         Args:
             point: 碰撞点坐标
+            max_attempts: 最大尝试次数
 
         Returns:
             纠偏后的碰撞点坐标
         """
-        x_min = np.min(self.x_grid)
-        x_max = np.max(self.x_grid)
-        y_min = np.min(self.y_grid)
-        y_max = np.max(self.y_grid)
+        x_min, x_max = np.min(self.x_grid), np.max(self.x_grid)
+        y_min, y_max = np.min(self.y_grid), np.max(self.y_grid)
+        z_min, z_max = 0, np.max(self.z_grid)
 
-        while terrain.is_point_collision_detected(point, self.x_grid, self.y_grid, self.z_grid):
-            point[0] -= 1
-            if point[0] < x_min:
-                point[0] = x_min
-                break
+        # 8方向搜索（含对角线）+ Z轴调整
+        directions = [
+            (1, 0, 0),
+            (-1, 0, 0),
+            (0, 1, 0),
+            (0, -1, 0),
+            (1, 1, 0),
+            (1, -1, 0),
+            (-1, 1, 0),
+            (-1, -1, 0),
+            (0, 0, 1),
+            (0, 0, -1),
+        ]
 
-        while terrain.is_point_collision_detected(point, self.x_grid, self.y_grid, self.z_grid):
-            point[0] += 1
-            if point[0] > x_max:
-                point[0] = x_max
-                break
+        # 初始步长
+        step_size = 3
 
-        while terrain.is_point_collision_detected(point, self.x_grid, self.y_grid, self.z_grid):
-            point[1] -= 1
-            if point[1] < y_min:
-                point[1] = y_min
-                break
+        for i in range(max_attempts):
+            # 动态步长衰减（指数级减小）
+            current_step = step_size * (0.8**i)
+            current_step = min(current_step, 0.5)
 
-        while terrain.is_point_collision_detected(point, self.x_grid, self.y_grid, self.z_grid):
-            point[1] += 1
-            if point[1] > y_max:
-                point[1] = y_max
-                break
+            # 尝试搜索所有方向
+            for dx, dy, dz in directions:
+                new_point = point.copy()
+                new_point[0] += dx * current_step
+                new_point[1] += dy * current_step
+                new_point[2] += dz * current_step
+
+                # 边界检查
+                new_point[0] = np.clip(new_point[0], x_min, x_max)
+                new_point[1] = np.clip(new_point[1], y_min, y_max)
+                new_point[2] = np.clip(new_point[2], z_min, z_max)
+
+                # 检查是否找到无碰撞点
+                if not terrain.is_point_collision_detected(new_point, self.x_grid, self.y_grid, self.z_grid):
+                    logger.warning(f"原碰撞点{point}已经纠偏为无碰撞点{new_point}")
+                    return new_point
+
+        # 若所有方向均失败，强制抬升Z轴
+        point[2] = z_max
+        logger.warning(f"无法完全规避碰撞，已强制抬升高度至{z_max}")
 
         return point
 
@@ -191,20 +210,23 @@ class PathPlanner3D:
         # 选择成本最小的点
         best_point = positions[np.argmin(costs)]
 
-        # 碰撞点纠偏
+        # 路径点碰撞纠偏
         if terrain.is_point_collision_detected(best_point, self.x_grid, self.y_grid, self.z_grid):
             best_point = self.correct_collision_point(best_point)
 
-        # 线段碰撞点纠偏
+        # 路径点连接后的线段碰撞纠偏
         collision_points = terrain.is_line_collision_detected(
             previous_point, best_point, self.x_grid, self.y_grid, self.z_grid
         )
         # 如果没有碰撞点，直接添加当前最佳点
         if len(collision_points) == 0:
+            logger.success(f"路径点{previous_point} -> {best_point}之间没有发生连接后穿透地形碰撞风险")
             bx, by, bz = best_point[0], best_point[1], best_point[2]
             self.best_path_points.append((bx.item(), by.item(), bz.item()))
         else:
             # 否则就对采样检测到的碰撞点进行纠偏
+            logger.warning(f"检测到路径点{previous_point} -> {best_point}之间连接后发生穿透地形碰撞风险")
+            logger.warning(f"已经对连接线段进行采样，发现{len(collision_points)}个采样碰撞点，正在对碰撞点进行纠偏")
             for point in collision_points:
                 corrected_collision_point = self.correct_collision_point(np.array(point))
                 cx, cy, cz = corrected_collision_point[0], corrected_collision_point[1], corrected_collision_point[2]
