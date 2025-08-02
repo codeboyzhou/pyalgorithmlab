@@ -2,6 +2,7 @@ from typing import cast
 
 import matplotlib.pyplot as plt
 import numpy as np
+from loguru import logger
 from mpl_toolkits.mplot3d import Axes3D
 from numpy import ndarray
 from scipy.interpolate import make_interp_spline
@@ -56,9 +57,11 @@ class PathPlanner3D:
         Args:
             mark_waypoints: 是否标记途经点. Defaults to True.
         """
-        # 追加终点并对点坐标排序
-        self.best_path_points.append(self.destination)
+        # 点坐标排序
         self.best_path_points.sort(key=lambda p: p[0] + p[1] + p[2])
+        # 追加终点
+        self.best_path_points.append(self.destination)
+        logger.success(f"最优路径点为{self.best_path_points}")
 
         # 绘制地形
         fig = plt.figure(figsize=(10, 8))
@@ -99,7 +102,7 @@ class PathPlanner3D:
         axes3d.legend()
         plt.show()
 
-    def correct_collision_points(self, point: np.ndarray) -> ndarray:
+    def correct_collision_point(self, point: np.ndarray) -> ndarray:
         """
         纠偏碰撞点
 
@@ -186,12 +189,11 @@ class PathPlanner3D:
         costs += terrain_collision_costs * terrain_collision_weight
 
         # 选择成本最小的点
-        best_point_index = np.argmin(costs)
-        best_point = positions[best_point_index]
+        best_point = positions[np.argmin(costs)]
 
         # 碰撞点纠偏
         if terrain.is_point_collision_detected(best_point, self.x_grid, self.y_grid, self.z_grid):
-            best_point = self.correct_collision_points(best_point)
+            best_point = self.correct_collision_point(best_point)
 
         # 线段碰撞点纠偏
         collision_points = terrain.is_line_collision_detected(
@@ -204,7 +206,7 @@ class PathPlanner3D:
         else:
             # 否则就对采样检测到的碰撞点进行纠偏
             for point in collision_points:
-                corrected_collision_point = self.correct_collision_points(np.array(point))
+                corrected_collision_point = self.correct_collision_point(np.array(point))
                 cx, cy, cz = corrected_collision_point[0], corrected_collision_point[1], corrected_collision_point[2]
                 self.best_path_points.append((cx.item(), cy.item(), cz.item()))
 
