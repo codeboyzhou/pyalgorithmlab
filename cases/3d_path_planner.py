@@ -1,16 +1,12 @@
-from typing import cast
-
-import matplotlib.pyplot as plt
 import numpy as np
+import plotly.graph_objects as go
 from loguru import logger
-from mpl_toolkits.mplot3d import Axes3D
 from numpy import ndarray
-from scipy.interpolate import make_interp_spline
+from plotly import subplots
 
 from pyalgorithmlab.pso.core import ParticleSwarmOptimizer
 from pyalgorithmlab.pso.types import AlgorithmArguments, ProblemType
-from pyalgorithmlab.pso.util import plot
-from pyalgorithmlab.util import ndarrays, terrain
+from pyalgorithmlab.util import ndarrays, plotly3d, terrain
 from pyalgorithmlab.util.model.peak import Peak
 
 
@@ -50,57 +46,96 @@ class PathPlanner3D:
         # 初始化最优路径点
         self.best_path_points: list[tuple[float, float, float]] = [start_point]
 
-    def plot_terrain_and_best_path(self, mark_waypoints: bool = True) -> None:
+    def plot_result(self, best_fitness_values: list[float]) -> None:
         """
-        绘制地形和最优路径
+        绘制实验结果
 
         Args:
-            mark_waypoints: 是否标记途经点. Defaults to True.
+            best_fitness_values: 最优适应度值列表
+
+        Returns:
+            None
         """
         # 点坐标排序
         self.best_path_points.sort(key=lambda p: p[0] + p[1] + p[2])
         # 追加终点
         self.best_path_points.append(self.destination)
-        logger.success(f"最优路径点为{self.best_path_points}")
 
-        # 绘制地形
-        fig = plt.figure(figsize=(10, 8))
-        axes3d = cast(Axes3D, fig.add_subplot(111, projection="3d"))
-        surface = axes3d.plot_surface(self.x_grid, self.y_grid, self.z_grid, cmap="viridis", alpha=0.6)
-        fig.colorbar(surface, shrink=0.5, aspect=5)
+        # 绘制算法迭代结果
+        fig = subplots.make_subplots(
+            rows=1,
+            cols=2,
+            column_widths=[0.4, 0.6],
+            subplot_titles=["适应度变化曲线", "路径规划效果图"],
+            specs=[[{"type": "xy"}, {"type": "surface"}]],
+        )
 
-        # 标记路径点
-        for i, point in enumerate(self.best_path_points):
-            px, py, pz = point[0], point[1], point[2]
-            # 起点
-            if i == 0:
-                axes3d.scatter(px, py, int(pz), c="green", s=100, marker="o", label="Starting Point")
-            # 终点
-            elif i == len(self.best_path_points) - 1:
-                axes3d.scatter(px, py, int(pz), c="red", s=100, marker="*", label="Destination")
-            # 途经点
-            elif mark_waypoints:
-                axes3d.scatter(px, py, int(pz), c="orange", s=100, marker="^", label="Waypoint" if i == 1 else None)
-                axes3d.text(x=px + 0.2, y=py + 0.2, z=pz + 0.2, color="red", s=f"P{i}", fontsize=10)
+        # 绘制适应度变化曲线
+        fitness_trace = go.Scatter(
+            mode="lines",
+            x=list(range(0, len(best_fitness_values))),
+            y=best_fitness_values,
+            line={"width": 3},
+            name="适应度值",
+        )
+        fig.add_trace(fitness_trace, row=1, col=1)
 
-        # 使用三阶B样条曲线绘制平滑路径
-        np_best_path_points = np.array(self.best_path_points)
-        px, py, pz = np_best_path_points[:, 0], np_best_path_points[:, 1], np_best_path_points[:, 2]
-        # 计算路径点的参数化变量
-        t_for_spline = np.arange(len(px))
-        # 创建三阶B样条曲线（k=3表示三阶）
-        spline = make_interp_spline(t_for_spline, np.column_stack((px, py, pz)), k=3)
-        # 生成平滑路径点，使用参数化变量进行插值，可以根据需要调整点的数量
-        smooth_path = spline(np.linspace(t_for_spline.min(), t_for_spline.max(), 100))
-        px, py, pz = smooth_path[:, 0], smooth_path[:, 1], smooth_path[:, 2]
-        axes3d.plot(px, py, pz, "b-", linewidth=5, label="Best Path")
+        # 绘制地形图
+        terrain_trace = go.Surface(x=self.x_grid, y=self.y_grid, z=self.z_grid, showscale=False)
+        fig.add_trace(terrain_trace, row=1, col=2)
 
-        axes3d.view_init(elev=30, azim=240)
-        axes3d.set_xlabel("X")
-        axes3d.set_ylabel("Y")
-        axes3d.set_zlabel("Z")
-        axes3d.legend()
-        plt.show()
+        # 标记起点
+        fig.add_trace(
+            go.Scatter3d(
+                x=[self.start_point[0]],
+                y=[self.start_point[1]],
+                z=[self.start_point[2]],
+                marker={"size": 5, "color": "green", "symbol": "circle"},
+                mode="markers",
+                name="起点",
+            )
+        )
+
+        # 标记终点
+        fig.add_trace(
+            go.Scatter3d(
+                x=[self.destination[0]],
+                y=[self.destination[1]],
+                z=[self.destination[2]],
+                marker={"size": 5, "color": "red", "symbol": "x"},
+                mode="markers",
+                name="终点",
+            )
+        )
+
+        # 绘制路径
+        path_trace = go.Scatter3d(
+            x=[p[0] for p in self.best_path_points],
+            y=[p[1] for p in self.best_path_points],
+            z=[p[2] for p in self.best_path_points],
+            line={"width": 15, "color": "green"},
+            mode="lines",
+            name="目标路径",
+        )
+        fig.add_trace(path_trace, row=1, col=2)
+
+        # 配置全局绘图参数
+        fig.update_layout(
+            title={"text": "基于PSO算法的3D路径规划实验结果"},
+            # 适应度变化曲线
+            xaxis_title="X-迭代次数",
+            yaxis_title="Y-适应度值",
+            # 路径规划效果图
+            scene={
+                "xaxis_title": "X方向",
+                "yaxis_title": "Y方向",
+                "zaxis_title": "高度",
+                "camera_eye": plotly3d.compute_plotly_camera_eye(elev=30, azim=240),
+            },
+        )
+
+        # 显示图表
+        fig.show()
 
     def correct_collision_point(self, point: np.ndarray, max_attempts: int = 100) -> ndarray:
         """
@@ -268,5 +303,4 @@ if __name__ == "__main__":
     )
 
     best_fitness_values = pso_optimizer.start_iterating()
-    plot.plot_fitness_change_curve(best_fitness_values)
-    path_planner.plot_terrain_and_best_path()
+    path_planner.plot_result(best_fitness_values)
