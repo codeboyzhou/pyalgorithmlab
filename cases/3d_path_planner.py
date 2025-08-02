@@ -46,12 +46,12 @@ class PathPlanner3D:
         # 初始化最优路径点
         self.best_path_points: list[tuple[float, float, float]] = [start_point]
 
-    def plot_result(self, best_fitness_values: list[float]) -> None:
+    def plot_result(self, fitness_values: list[float]) -> None:
         """
         绘制实验结果
 
         Args:
-            best_fitness_values: 最优适应度值列表
+            fitness_values: 适应度值列表
 
         Returns:
             None
@@ -73,8 +73,8 @@ class PathPlanner3D:
         # 绘制适应度变化曲线
         fitness_trace = go.Scatter(
             mode="lines",
-            x=list(range(0, len(best_fitness_values))),
-            y=best_fitness_values,
+            x=list(range(0, len(fitness_values))),
+            y=fitness_values,
             line={"width": 3},
             name="适应度值",
         )
