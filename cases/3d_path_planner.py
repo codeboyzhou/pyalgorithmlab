@@ -1,14 +1,14 @@
 import numpy as np
 import plotly.graph_objects as go
 from loguru import logger
-from numpy import ndarray
 from plotly import subplots
 from scipy.interpolate import make_interp_spline
 
 from pyalgorithmlab.pso.core import ParticleSwarmOptimizer
 from pyalgorithmlab.pso.types import AlgorithmArguments, ProblemType
-from pyalgorithmlab.util import ndarrays, plotly3d, terrain
-from pyalgorithmlab.util.model.peak import Peak
+from pyalgorithmlab.py3d import terrain
+from pyalgorithmlab.py3d.types import Grid, Peak, Point
+from pyalgorithmlab.util import ndarrays, plotly3d
 
 
 class PathPlanner3D:
@@ -17,8 +17,8 @@ class PathPlanner3D:
     def __init__(
         self,
         algorithm_args: AlgorithmArguments,
-        start_point: tuple[float, float, float],
-        destination: tuple[float, float, float],
+        start_point: Point,
+        destination: Point,
         peaks: list[Peak],
     ) -> None:
         """
@@ -32,20 +32,20 @@ class PathPlanner3D:
         """
         self.algorithm_args = algorithm_args
 
-        # 初始化坐标网格
+        # 初始化坐标网格和地形
         x = np.linspace(algorithm_args.position_bounds_min[0], algorithm_args.position_bounds_max[0], 100)
         y = np.linspace(algorithm_args.position_bounds_min[1], algorithm_args.position_bounds_max[1], 100)
-        self.x_grid, self.y_grid = np.meshgrid(x, y)
-
-        # 生成模拟的山脉地形
-        self.z_grid = terrain.generate_simulated_mountain_peaks(self.x_grid, self.y_grid, peaks)
+        xx, yy = np.meshgrid(x, y)
+        zz = terrain.init_mountain_terrain(xx, yy, peaks)
+        self.grid = Grid(x=xx, y=yy, z=zz)
+        self.peaks = peaks
 
         # 初始化起点和终点
-        self.start_point = start_point
-        self.destination = destination
+        self.start_point: Point = start_point
+        self.destination: Point = destination
 
         # 初始化最优路径点
-        self.best_path_points: list[tuple[float, float, float]] = [start_point]
+        self.best_path_points: list[Point] = [start_point]
 
     def plot_result(self, fitness_values: list[float]) -> None:
         """
@@ -57,10 +57,29 @@ class PathPlanner3D:
         Returns:
             None
         """
-        # 点坐标排序
-        self.best_path_points.sort(key=lambda p: p[0] + p[1] + p[2])
         # 追加终点
         self.best_path_points.append(self.destination)
+        # 坐标排序
+        self.best_path_points.sort(key=lambda pt: pt.x + pt.y + pt.z)
+
+        # 碰撞纠偏
+        for i in range(len(self.best_path_points)):
+            # 单个点碰撞场景
+            current_point = self.best_path_points[i]
+            if terrain.check_point_collision(current_point, self.peaks):
+                logger.warning(f"检测到点{current_point}存在地形碰撞风险，正在对碰撞点进行纠偏")
+                self.best_path_points[i] = self.correct_collision_point(current_point)
+
+            # 相邻点连接后穿透地形碰撞场景
+            if i > 0:
+                previous_point = self.best_path_points[i - 1]
+                collision_points = terrain.check_line_segment_collision(previous_point, current_point, self.peaks)
+                if len(collision_points) > 0:
+                    logger.warning(f"检测到线段{previous_point} -> {current_point}在点{collision_points}处穿透地形")
+                    self.best_path_points[i:i] = [self.correct_collision_point(p) for p in collision_points]
+
+        self.best_path_points.sort(key=lambda pt: pt.x + pt.y + pt.z)
+        logger.success(f"最优路径点结果{self.best_path_points}")
 
         # 绘制算法迭代结果
         fig = subplots.make_subplots(
@@ -82,15 +101,15 @@ class PathPlanner3D:
         fig.add_trace(fitness_trace, row=1, col=1)
 
         # 绘制地形图
-        terrain_trace = go.Surface(x=self.x_grid, y=self.y_grid, z=self.z_grid, showscale=False)
+        terrain_trace = go.Surface(x=self.grid.x, y=self.grid.y, z=self.grid.z, showscale=False)
         fig.add_trace(terrain_trace, row=1, col=2)
 
         # 标记起点
         fig.add_trace(
             go.Scatter3d(
-                x=[self.start_point[0]],
-                y=[self.start_point[1]],
-                z=[self.start_point[2]],
+                x=[self.start_point.x],
+                y=[self.start_point.y],
+                z=[self.start_point.z],
                 marker={"size": 5, "color": "green", "symbol": "circle"},
                 mode="markers",
                 name="起点",
@@ -100,9 +119,9 @@ class PathPlanner3D:
         # 标记终点
         fig.add_trace(
             go.Scatter3d(
-                x=[self.destination[0]],
-                y=[self.destination[1]],
-                z=[self.destination[2]],
+                x=[self.destination.x],
+                y=[self.destination.y],
+                z=[self.destination.z],
                 marker={"size": 5, "color": "red", "symbol": "x"},
                 mode="markers",
                 name="终点",
@@ -110,8 +129,9 @@ class PathPlanner3D:
         )
 
         # 使用三阶B样条曲线绘制平滑路径
-        path_points = np.array(self.best_path_points)
-        x, y, z = path_points[:, 0], path_points[:, 1], path_points[:, 2]
+        x = np.array([p.x for p in self.best_path_points])
+        y = np.array([p.y for p in self.best_path_points])
+        z = np.array([p.z for p in self.best_path_points])
         # 计算路径点的参数化变量
         t_for_spline = np.arange(len(x))
         # 创建三阶B样条曲线（k=3表示三阶）
@@ -138,67 +158,85 @@ class PathPlanner3D:
         )
 
         # 显示图表
-        fig.show()
+        fig.show(renderer="browser")
 
-    def correct_collision_point(self, point: np.ndarray, max_attempts: int = 100) -> ndarray:
+    def correct_collision_point(self, point: Point) -> Point:
         """
         纠偏碰撞点
 
         Args:
             point: 碰撞点坐标
-            max_attempts: 最大尝试次数
 
         Returns:
             纠偏后的碰撞点坐标
         """
-        x_min, x_max = np.min(self.x_grid), np.max(self.x_grid)
-        y_min, y_max = np.min(self.y_grid), np.max(self.y_grid)
-        z_min, z_max = 0, np.max(self.z_grid)
+        x_min, x_max = self.algorithm_args.position_bounds_min[0], self.algorithm_args.position_bounds_max[0]
+        y_min, y_max = self.algorithm_args.position_bounds_min[1], self.algorithm_args.position_bounds_max[1]
+        z_min, z_max = self.algorithm_args.position_bounds_min[2], self.algorithm_args.position_bounds_max[2]
 
-        # 8方向搜索（含对角线）+ Z轴调整
+        # 定义搜索方向
         directions = [
+            # X方向
             (1, 0, 0),
             (-1, 0, 0),
+            # Y方向
             (0, 1, 0),
             (0, -1, 0),
+            # 对角线方向
             (1, 1, 0),
             (1, -1, 0),
             (-1, 1, 0),
             (-1, -1, 0),
+            # Z方向
             (0, 0, 1),
             (0, 0, -1),
         ]
 
-        # 初始步长
-        step_size = 3
+        # 初始化搜索半径
+        search_radius = 1
 
-        for i in range(max_attempts):
-            # 动态步长衰减（指数级减小）
-            current_step = step_size * (0.8**i)
-            current_step = min(current_step, 0.5)
+        # 初始化搜索次数
+        attempt = 0
+        max_attempts = 100
 
-            # 尝试搜索所有方向
+        while attempt < max_attempts:
+            attempt += 1
+            best_safe_point = None
+            min_distance = float("inf")
+
             for dx, dy, dz in directions:
-                new_point = point.copy()
-                new_point[0] += dx * current_step
-                new_point[1] += dy * current_step
-                new_point[2] += dz * current_step
+                # 动态步长：随尝试次数增加搜索范围
+                step = search_radius if attempt < 20 else search_radius * (attempt / 20)
+                # 保证每个方向搜索结果互不干扰
+                new_point = Point(x=point.x, y=point.y, z=point.z)
+                # 移动位置
+                new_point.x += dx * step
+                new_point.y += dy * step
+                new_point.z += dz * step
+                # 边界约束
+                new_point.x = x_min if new_point.x < x_min else x_max if new_point.x > x_max else new_point.x
+                new_point.y = y_min if new_point.y < y_min else y_max if new_point.y > y_max else new_point.y
+                new_point.z = z_min if new_point.z < z_min else z_max if new_point.z > z_max else new_point.z
+                # 每移动一次位置都检查是否已经安全
+                if not terrain.check_point_collision(new_point, self.peaks):
+                    # 计算距离，选择最近安全点
+                    distance = np.linalg.norm(new_point.to_ndarray() - point.to_ndarray())
+                    if distance < min_distance:
+                        min_distance = distance
+                        best_safe_point = new_point
 
-                # 边界检查
-                new_point[0] = np.clip(new_point[0], x_min, x_max)
-                new_point[1] = np.clip(new_point[1], y_min, y_max)
-                new_point[2] = np.clip(new_point[2], z_min, z_max)
+            # 选择最近安全点
+            if best_safe_point is not None:
+                logger.success(f"碰撞点{point}已被成功纠偏为安全点{best_safe_point}")
+                return best_safe_point
 
-                # 检查是否找到无碰撞点
-                if not terrain.is_point_collision_detected(new_point, self.x_grid, self.y_grid, self.z_grid):
-                    logger.warning(f"原碰撞点{point}已经纠偏为无碰撞点{new_point}")
-                    return new_point
+            # 扩大搜索范围
+            search_radius += 1
 
-        # 若所有方向均失败，强制抬升Z轴
-        point[2] = z_max
-        logger.warning(f"无法完全规避碰撞，已强制抬升高度至{z_max}")
-
-        return point
+        # 最终纠偏没有搜索到安全点，返回到原始点，并抬升高度到最大海拔
+        new_point = Point(x=point.x, y=point.y, z=z_max)
+        logger.warning(f"未找到安全点，返回原始点，并抬升高度到最大海拔{new_point}")
+        return new_point
 
     def calculate_best_path_costs(self, positions: np.ndarray) -> np.ndarray:
         """
@@ -222,53 +260,29 @@ class PathPlanner3D:
         terrain_collision_weight = 0.7 + 0.3 * iteration_progress
 
         # 终点距离成本
-        distance_to_destination_costs = np.linalg.norm(positions - self.destination, axis=1)
+        distance_to_destination_costs = np.linalg.norm(positions - self.destination.to_ndarray(), axis=1)
         costs += ndarrays.min_max_normalize(np.array(distance_to_destination_costs)) * distance_to_destination_weight
 
         # 粒子偏离成本
         point_deviation_costs = ndarrays.point_to_line_distance(
-            positions, np.array(self.start_point), np.array(self.destination)
+            positions, self.start_point.to_ndarray(), self.destination.to_ndarray()
         )
         costs += ndarrays.min_max_normalize(point_deviation_costs) * point_deviation_weight
 
         # 粒子聚集成本
-        previous_point = np.array(self.best_path_points[-1])
+        previous_point = self.best_path_points[-1].to_ndarray()
         point_gathering_costs = np.linalg.norm(positions - previous_point, axis=1)
         costs += ndarrays.min_max_normalize(point_gathering_costs) * point_gathering_weight
 
         # 地形碰撞成本
         terrain_collision_costs = np.array(
-            [
-                1 if terrain.is_point_collision_detected(point, self.x_grid, self.y_grid, self.z_grid) else 0
-                for point in positions
-            ]
+            [1 if terrain.check_point_collision(Point.from_ndarray(p), self.peaks) else 0 for p in positions]
         )
         costs += terrain_collision_costs * terrain_collision_weight
 
-        # 选择成本最小的点
+        # 选择成本最小的点作为最优路径点
         best_point = positions[np.argmin(costs)]
-
-        # 路径点碰撞纠偏
-        if terrain.is_point_collision_detected(best_point, self.x_grid, self.y_grid, self.z_grid):
-            best_point = self.correct_collision_point(best_point)
-
-        # 路径点连接后的线段碰撞纠偏
-        collision_points = terrain.is_line_collision_detected(
-            previous_point, best_point, self.x_grid, self.y_grid, self.z_grid
-        )
-        # 如果没有碰撞点，直接添加当前最佳点
-        if len(collision_points) == 0:
-            logger.success(f"路径点{previous_point} -> {best_point}之间没有发生连接后穿透地形碰撞风险")
-            bx, by, bz = best_point[0], best_point[1], best_point[2]
-            self.best_path_points.append((bx.item(), by.item(), bz.item()))
-        else:
-            # 否则就对采样检测到的碰撞点进行纠偏
-            logger.warning(f"检测到路径点{previous_point} -> {best_point}之间连接后发生穿透地形碰撞风险")
-            logger.warning(f"已经对连接线段进行采样，发现{len(collision_points)}个采样碰撞点，正在对碰撞点进行纠偏")
-            for point in collision_points:
-                corrected_collision_point = self.correct_collision_point(np.array(point))
-                cx, cy, cz = corrected_collision_point[0], corrected_collision_point[1], corrected_collision_point[2]
-                self.best_path_points.append((cx.item(), cy.item(), cz.item()))
+        self.best_path_points.append(Point.from_ndarray(best_point))
 
         return costs
 
@@ -278,7 +292,7 @@ if __name__ == "__main__":
         num_particles=100,
         num_dimensions=3,
         max_iterations=100,
-        position_bounds_min=(0, 0, 0),
+        position_bounds_min=(0, 0, 1),
         position_bounds_max=(100, 100, 1),
         velocity_bound_max=1,
         inertia_weight_max=1.8,
@@ -289,8 +303,8 @@ if __name__ == "__main__":
 
     path_planner = PathPlanner3D(
         algorithm_args=pso_args,
-        start_point=(0, 0, 0),
-        destination=(100, 100, 1),
+        start_point=Point(x=0, y=0, z=1),
+        destination=Point(x=100, y=100, z=1),
         peaks=[
             Peak(center_x=20, center_y=20, amplitude=6, width=6),
             Peak(center_x=20, center_y=60, amplitude=7, width=7),
