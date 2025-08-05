@@ -10,7 +10,7 @@ def x_square_minimization_problem(positions: np.ndarray) -> np.ndarray:
     这个函数定义了一个简单的优化问题：最小化 f(x) = x^2
     该函数接受一个位置数组，并返回每个位置的平方值作为适应度值
     """
-    return positions**2
+    return np.sum(positions**2, axis=1)
 
 
 def test_x_square_minimization_problem():
