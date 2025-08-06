@@ -44,6 +44,9 @@ class Point(BaseModel):
     def to_ndarray(self) -> np.ndarray:
         return np.array([self.x, self.y, self.z])
 
+    def clone(self) -> "Point":
+        return self.model_copy(deep=True)
+
 
 class Grid(BaseModel):
     """三维网格模型"""

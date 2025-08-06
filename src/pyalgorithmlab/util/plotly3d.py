@@ -1,5 +1,10 @@
 import math
 
+import plotly.graph_objects as go
+from plotly.graph_objs import Scatter3d
+
+from pyalgorithmlab.py3d.types import Point
+
 
 def compute_plotly_camera_eye(elev: int = 0, azim: int = 0, camera_distance: float = 2.5) -> dict:
     """
@@ -19,3 +24,26 @@ def compute_plotly_camera_eye(elev: int = 0, azim: int = 0, camera_distance: flo
     y = math.sin(azim_rad) * math.cos(elev_rad) * camera_distance
     z = math.sin(elev_rad) * camera_distance
     return {"x": x, "y": y, "z": z}
+
+
+def circle_scatter3d(point: Point, name: str, color: str, size: int = 5) -> Scatter3d:
+    """
+    生成一个圆形的3D散点，用于表示一个点
+
+    Args:
+        point: 点的坐标
+        name: 点的名称
+        color: 点的颜色
+        size: 点的大小
+
+    Returns:
+        3D散点图对象
+    """
+    return go.Scatter3d(
+        x=[point.x],
+        y=[point.y],
+        z=[point.z],
+        name=name,
+        mode="markers",
+        marker={"color": color, "size": size, "symbol": "circle"},
+    )

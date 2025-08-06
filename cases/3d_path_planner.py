@@ -6,7 +6,7 @@ from scipy.interpolate import make_interp_spline
 
 from pyalgorithmlab.pso.core import ParticleSwarmOptimizer
 from pyalgorithmlab.pso.types import AlgorithmArguments, ProblemType
-from pyalgorithmlab.py3d import terrain
+from pyalgorithmlab.py3d.terrain import Terrain
 from pyalgorithmlab.py3d.types import Grid, Peak, Point
 from pyalgorithmlab.util import ndarrays, plotly3d
 
@@ -32,11 +32,16 @@ class PathPlanner3D:
         """
         self.algorithm_args = algorithm_args
 
-        # 初始化坐标网格和地形
+        # 初始化XY平面坐标
         x = np.linspace(algorithm_args.position_bounds_min[0], algorithm_args.position_bounds_max[0], 100)
         y = np.linspace(algorithm_args.position_bounds_min[1], algorithm_args.position_bounds_max[1], 100)
         xx, yy = np.meshgrid(x, y)
-        zz = terrain.init_mountain_terrain(xx, yy, peaks)
+
+        # 初始化地形和山脉坐标
+        self.terrain = Terrain(xx, yy, peaks)
+        zz = self.terrain.init_mountain_terrain()
+
+        # 初始化网格
         self.grid = Grid(x=xx, y=yy, z=zz)
         self.peaks = peaks
 
@@ -62,23 +67,17 @@ class PathPlanner3D:
         # 坐标排序
         self.best_path_points.sort(key=lambda pt: pt.x + pt.y + pt.z)
 
-        # 碰撞纠偏
-        for i in range(len(self.best_path_points)):
-            # 单个点碰撞场景
+        # 尝试进行碰撞点坐标修正
+        for i in range(1, len(self.best_path_points)):
+            # 路径点碰撞
             current_point = self.best_path_points[i]
-            if terrain.check_point_collision(current_point, self.peaks):
-                logger.warning(f"检测到点{current_point}存在地形碰撞风险，正在对碰撞点进行纠偏")
-                self.best_path_points[i] = self.correct_collision_point(current_point)
+            self.best_path_points[i] = self.terrain.try_correct_collision_point(current_point)
+            # 路径线段碰撞
+            previous_point = self.best_path_points[i - 1]
+            collision_points = self.terrain.check_line_segment_collision_points(previous_point, current_point)
+            if len(collision_points) > 0:
+                self.best_path_points[i:i] = [self.terrain.try_correct_collision_point(p) for p in collision_points]
 
-            # 相邻点连接后穿透地形碰撞场景
-            if i > 0:
-                previous_point = self.best_path_points[i - 1]
-                collision_points = terrain.check_line_segment_collision(previous_point, current_point, self.peaks)
-                if len(collision_points) > 0:
-                    logger.warning(f"检测到线段{previous_point} -> {current_point}在点{collision_points}处穿透地形")
-                    self.best_path_points[i:i] = [self.correct_collision_point(p) for p in collision_points]
-
-        self.best_path_points.sort(key=lambda pt: pt.x + pt.y + pt.z)
         logger.success(f"最优路径点结果{self.best_path_points}")
 
         # 绘制算法迭代结果
@@ -104,30 +103,6 @@ class PathPlanner3D:
         terrain_trace = go.Surface(x=self.grid.x, y=self.grid.y, z=self.grid.z, showscale=False)
         fig.add_trace(terrain_trace, row=1, col=2)
 
-        # 标记起点
-        fig.add_trace(
-            go.Scatter3d(
-                x=[self.start_point.x],
-                y=[self.start_point.y],
-                z=[self.start_point.z],
-                marker={"size": 5, "color": "green", "symbol": "circle"},
-                mode="markers",
-                name="起点",
-            )
-        )
-
-        # 标记终点
-        fig.add_trace(
-            go.Scatter3d(
-                x=[self.destination.x],
-                y=[self.destination.y],
-                z=[self.destination.z],
-                marker={"size": 5, "color": "red", "symbol": "x"},
-                mode="markers",
-                name="终点",
-            )
-        )
-
         # 使用三阶B样条曲线绘制平滑路径
         x = np.array([p.x for p in self.best_path_points])
         y = np.array([p.y for p in self.best_path_points])
@@ -139,8 +114,21 @@ class PathPlanner3D:
         # 生成平滑路径点，使用参数化变量进行插值，可以根据需要调整点的数量
         smooth_path = spline(np.linspace(t_for_spline.min(), t_for_spline.max(), 100))
         x, y, z = smooth_path[:, 0], smooth_path[:, 1], smooth_path[:, 2]
-        path_trace = go.Scatter3d(x=x, y=y, z=z, line={"width": 10, "color": "green"}, mode="lines", name="目标路径")
+        path_trace = go.Scatter3d(
+            x=x,
+            y=y,
+            z=z,
+            line={"width": 10, "color": "green"},
+            marker={"size": 3, "color": "yellow", "symbol": "diamond"},
+            mode="lines+markers",
+            name="目标路径",
+        )
         fig.add_trace(path_trace, row=1, col=2)
+
+        # 标记起点
+        fig.add_trace(plotly3d.circle_scatter3d(point=self.start_point, name="起点", color="green"))
+        # 标记终点
+        fig.add_trace(plotly3d.circle_scatter3d(point=self.destination, name="终点", color="red"))
 
         # 配置全局绘图参数
         fig.update_layout(
@@ -160,84 +148,6 @@ class PathPlanner3D:
         # 显示图表
         fig.show(renderer="browser")
 
-    def correct_collision_point(self, point: Point) -> Point:
-        """
-        纠偏碰撞点
-
-        Args:
-            point: 碰撞点坐标
-
-        Returns:
-            纠偏后的碰撞点坐标
-        """
-        x_min, x_max = self.algorithm_args.position_bounds_min[0], self.algorithm_args.position_bounds_max[0]
-        y_min, y_max = self.algorithm_args.position_bounds_min[1], self.algorithm_args.position_bounds_max[1]
-        z_min, z_max = self.algorithm_args.position_bounds_min[2], self.algorithm_args.position_bounds_max[2]
-
-        # 定义搜索方向
-        directions = [
-            # X方向
-            (1, 0, 0),
-            (-1, 0, 0),
-            # Y方向
-            (0, 1, 0),
-            (0, -1, 0),
-            # 对角线方向
-            (1, 1, 0),
-            (1, -1, 0),
-            (-1, 1, 0),
-            (-1, -1, 0),
-            # Z方向
-            (0, 0, 1),
-            (0, 0, -1),
-        ]
-
-        # 初始化搜索半径
-        search_radius = 1
-
-        # 初始化搜索次数
-        attempt = 0
-        max_attempts = 100
-
-        while attempt < max_attempts:
-            attempt += 1
-            best_safe_point = None
-            min_distance = float("inf")
-
-            for dx, dy, dz in directions:
-                # 动态步长：随尝试次数增加搜索范围
-                step = search_radius if attempt < 20 else search_radius * (attempt / 20)
-                # 保证每个方向搜索结果互不干扰
-                new_point = Point(x=point.x, y=point.y, z=point.z)
-                # 移动位置
-                new_point.x += dx * step
-                new_point.y += dy * step
-                new_point.z += dz * step
-                # 边界约束
-                new_point.x = x_min if new_point.x < x_min else x_max if new_point.x > x_max else new_point.x
-                new_point.y = y_min if new_point.y < y_min else y_max if new_point.y > y_max else new_point.y
-                new_point.z = z_min if new_point.z < z_min else z_max if new_point.z > z_max else new_point.z
-                # 每移动一次位置都检查是否已经安全
-                if not terrain.check_point_collision(new_point, self.peaks):
-                    # 计算距离，选择最近安全点
-                    distance = np.linalg.norm(new_point.to_ndarray() - point.to_ndarray())
-                    if distance < min_distance:
-                        min_distance = distance
-                        best_safe_point = new_point
-
-            # 选择最近安全点
-            if best_safe_point is not None:
-                logger.success(f"碰撞点{point}已被成功纠偏为安全点{best_safe_point}")
-                return best_safe_point
-
-            # 扩大搜索范围
-            search_radius += 1
-
-        # 最终纠偏没有搜索到安全点，返回到原始点，并抬升高度到最大海拔
-        new_point = Point(x=point.x, y=point.y, z=z_max)
-        logger.warning(f"未找到安全点，返回原始点，并抬升高度到最大海拔{new_point}")
-        return new_point
-
     def calculate_best_path_costs(self, positions: np.ndarray) -> np.ndarray:
         """
         PSO算法目标函数：计算粒子路径成本，规划最优路径点
@@ -249,40 +159,68 @@ class PathPlanner3D:
             粒子路径成本数组，形状为 (num_particles,)
         """
         # 初始化粒子路径成本
-        costs = np.zeros(positions.shape[0])
+        num_particles = positions.shape[0]
+        costs = np.zeros(num_particles)
 
-        # 定义惩罚权重
+        # 当前迭代进度
         iteration = len(self.best_path_points) - 1
         iteration_progress = iteration / self.algorithm_args.max_iterations
+
+        # 定义惩罚权重
         distance_to_destination_weight = 0.1 + 0.3 * iteration_progress
         point_deviation_weight = 0.4 - 0.1 * (iteration_progress**3)
-        point_gathering_weight = 0.1 + 0.4 * iteration_progress
+        path_direction_penalty_weight = 0.5 + 0.5 * iteration_progress
+        point_gathering_weight = (0.3 + 0.4 * iteration_progress) * (0.5 if iteration_progress < 0.3 else 1.0)
         terrain_collision_weight = 0.7 + 0.3 * iteration_progress
 
-        # 终点距离成本
-        distance_to_destination_costs = np.linalg.norm(positions - self.destination.to_ndarray(), axis=1)
-        costs += ndarrays.min_max_normalize(np.array(distance_to_destination_costs)) * distance_to_destination_weight
+        # 到终点的距离惩罚
+        destination = self.destination.to_ndarray()
+        distance_to_destination = np.linalg.norm(positions - destination, axis=1)
+        costs += ndarrays.normalize(distance_to_destination) * distance_to_destination_weight
 
-        # 粒子偏离成本
-        point_deviation_costs = ndarrays.point_to_line_distance(
-            positions, self.start_point.to_ndarray(), self.destination.to_ndarray()
+        # 偏离起点到终点的直线惩罚
+        start_point = self.start_point.to_ndarray()
+        point_deviation_costs = ndarrays.point_to_line_distance(positions, start_point, destination)
+        costs += ndarrays.normalize(point_deviation_costs) * point_deviation_weight
+
+        # 路径方向约束惩罚（基于方向夹角）
+        angles = ndarrays.cos_angles(positions, start_point, destination)
+        direction_penalty = np.sin(angles)  # 越偏离方向惩罚越大
+        costs += direction_penalty * path_direction_penalty_weight
+
+        # 路径点聚集惩罚
+        previous_point = self.best_path_points[-1]
+        point_gathering_costs = np.linalg.norm(positions - previous_point.to_ndarray(), axis=1)
+        point_gathering_costs = np.clip(point_gathering_costs, 10, 40)
+        costs += ndarrays.normalize(point_gathering_costs) * point_gathering_weight
+
+        # 路径点靠近山体惩罚
+        terrain_proximity_costs = np.array(
+            [self.terrain.min_horizontal_distance_to_peak_centers(Point.from_ndarray(p)) for p in positions]
         )
-        costs += ndarrays.min_max_normalize(point_deviation_costs) * point_deviation_weight
+        terrain_proximity_costs = np.exp(-terrain_proximity_costs)  # 越近惩罚越大
+        costs += terrain_proximity_costs * terrain_collision_weight
 
-        # 粒子聚集成本
-        previous_point = self.best_path_points[-1].to_ndarray()
-        point_gathering_costs = np.linalg.norm(positions - previous_point, axis=1)
-        costs += ndarrays.min_max_normalize(point_gathering_costs) * point_gathering_weight
+        # 路径点碰撞山体惩罚
+        for p in positions:
+            point = Point.from_ndarray(p)
+            # 检查点是否碰撞
+            if self.terrain.check_point_collision(point):
+                costs += 1 * terrain_collision_weight
+            # 检查线段是否碰撞
+            collision_points = self.terrain.check_line_segment_collision_points(previous_point, point)
+            if len(collision_points) > 0:
+                costs += len(collision_points) * terrain_collision_weight
 
-        # 地形碰撞成本
-        terrain_collision_costs = np.array(
-            [1 if terrain.check_point_collision(Point.from_ndarray(p), self.peaks) else 0 for p in positions]
-        )
-        costs += terrain_collision_costs * terrain_collision_weight
-
-        # 选择成本最小的点作为最优路径点
-        best_point = positions[np.argmin(costs)]
-        self.best_path_points.append(Point.from_ndarray(best_point))
+        # 选择最优点（不碰撞）并记录
+        sorted_indices = np.argsort(costs)
+        for index in sorted_indices:
+            candidate_point = Point.from_ndarray(positions[index])
+            is_point_collision = self.terrain.check_point_collision(candidate_point)
+            collision_points = self.terrain.check_line_segment_collision_points(previous_point, candidate_point)
+            if not is_point_collision and len(collision_points) == 0:
+                self.best_path_points.append(candidate_point)
+                break  # 仅添加一个最优可行点
 
         return costs
 
