@@ -52,12 +52,13 @@ class PathPlanner3D:
         # 初始化最优路径点
         self.best_path_points: list[Point] = [start_point]
 
-    def plot_result(self, fitness_values: list[float]) -> None:
+    def plot_result(self, fitness_values: list[float], mark_waypoint: bool = True) -> None:
         """
         绘制实验结果
 
         Args:
             fitness_values: 适应度值列表
+            mark_waypoint: 是否标记航路点
 
         Returns:
             None
@@ -120,7 +121,7 @@ class PathPlanner3D:
             z=z,
             line={"width": 10, "color": "green"},
             marker={"size": 3, "color": "yellow", "symbol": "diamond"},
-            mode="lines+markers",
+            mode="lines+markers" if mark_waypoint else "lines",
             name="目标路径",
         )
         fig.add_trace(path_trace, row=1, col=2)
@@ -258,4 +259,4 @@ if __name__ == "__main__":
     )
 
     best_fitness_values = pso_optimizer.start_iterating()
-    path_planner.plot_result(best_fitness_values)
+    path_planner.plot_result(best_fitness_values, mark_waypoint=False)
