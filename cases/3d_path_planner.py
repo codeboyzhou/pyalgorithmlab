@@ -243,12 +243,12 @@ if __name__ == "__main__":
     path_planner = PathPlanner3D(
         algorithm_args=pso_args,
         start_point=Point(x=0, y=0, z=1),
-        destination=Point(x=100, y=100, z=1),
+        destination=Point(x=80, y=80, z=1),
         peaks=[
-            Peak(center_x=20, center_y=20, amplitude=6, width=6),
-            Peak(center_x=20, center_y=60, amplitude=7, width=7),
+            Peak(center_x=20, center_y=20, amplitude=5, width=8),
+            Peak(center_x=20, center_y=70, amplitude=5, width=8),
             Peak(center_x=60, center_y=20, amplitude=5, width=8),
-            Peak(center_x=80, center_y=60, amplitude=5, width=8),
+            Peak(center_x=60, center_y=70, amplitude=5, width=8),
         ],
     )
 
