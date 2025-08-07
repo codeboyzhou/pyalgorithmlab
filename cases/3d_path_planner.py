@@ -213,13 +213,15 @@ class PathPlanner3D:
             if len(collision_points) > 0:
                 costs += len(collision_points) * terrain_collision_penalty_weight
 
-        # 选择成本最优且不会发生碰撞的点
+        # 选择成本最优且满足约束条件的点
         sorted_indices = np.argsort(costs)
         for index in sorted_indices:
             candidate_point = Point.from_ndarray(positions[index])
             is_point_collision = self.terrain.check_point_collision(candidate_point)
             collision_points = self.terrain.check_line_segment_collision_points(previous_point, candidate_point)
-            if not is_point_collision and len(collision_points) == 0:
+            height_diff_to_destination = abs(candidate_point.z - self.destination.z)
+            # 不碰撞，不穿透，高度合理
+            if not is_point_collision and len(collision_points) == 0 and height_diff_to_destination < 0.5:
                 self.best_path_points.append(candidate_point)
                 break  # 仅添加一个最优可行点
 
@@ -232,7 +234,7 @@ if __name__ == "__main__":
         num_dimensions=3,
         max_iterations=100,
         position_bounds_min=(0, 0, 1),
-        position_bounds_max=(100, 100, 1),
+        position_bounds_max=(100, 100, 5),
         velocity_bound_max=1,
         inertia_weight_max=1.8,
         inertia_weight_min=0.5,
@@ -243,7 +245,7 @@ if __name__ == "__main__":
     path_planner = PathPlanner3D(
         algorithm_args=pso_args,
         start_point=Point(x=0, y=0, z=1),
-        destination=Point(x=80, y=80, z=1),
+        destination=Point(x=80, y=80, z=2),
         peaks=[
             Peak(center_x=20, center_y=20, amplitude=5, width=8),
             Peak(center_x=20, center_y=70, amplitude=5, width=8),
