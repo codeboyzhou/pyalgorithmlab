@@ -63,10 +63,10 @@ class PathPlanner3D:
         Returns:
             None
         """
-        # 追加终点
-        self.best_path_points.append(self.destination)
         # 坐标排序
         self.best_path_points.sort(key=lambda pt: pt.x + pt.y + pt.z)
+        # 追加终点
+        self.best_path_points.append(self.destination)
 
         # 尝试进行碰撞点坐标修正
         for i in range(1, len(self.best_path_points)):
