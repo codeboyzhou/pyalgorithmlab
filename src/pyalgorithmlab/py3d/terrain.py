@@ -120,7 +120,7 @@ class Terrain:
         start = start_point.to_ndarray()
         end = end_point.to_ndarray()
 
-        num_sample_points = 100
+        num_sample_points = 20
         t_values = np.linspace(0, 1, num_sample_points)
 
         for t in t_values:

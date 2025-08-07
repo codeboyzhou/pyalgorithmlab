@@ -167,53 +167,53 @@ class PathPlanner3D:
         iteration = len(self.best_path_points) - 1
         iteration_progress = iteration / self.algorithm_args.max_iterations
 
-        # 定义惩罚权重
-        distance_to_destination_weight = 0.1 + 0.3 * iteration_progress
-        point_deviation_weight = 0.4 - 0.1 * (iteration_progress**3)
-        path_direction_penalty_weight = 0.5 + 0.5 * iteration_progress
-        point_gathering_weight = (0.3 + 0.4 * iteration_progress) * (0.5 if iteration_progress < 0.3 else 1.0)
-        terrain_collision_weight = 0.7 + 0.3 * iteration_progress
+        # 定义各项惩罚权重
+        distance_to_destination_penalty_weight = 0.1 + 0.3 * iteration_progress
+        distance_to_shortest_line_penalty_weight = 0.4 - 0.1 * (iteration_progress**3)
+        path_direction_angle_penalty_weight = 0.5 + 0.5 * iteration_progress
+        point_gathering_penalty_weight = (0.3 + 0.4 * iteration_progress) * (0.5 if iteration_progress < 0.3 else 1.0)
+        terrain_collision_penalty_weight = 0.7 + 0.3 * iteration_progress
 
-        # 到终点的距离惩罚
+        ### 到终点的距离惩罚，鼓励路径点向终点靠拢
         destination = self.destination.to_ndarray()
         distance_to_destination = np.linalg.norm(positions - destination, axis=1)
-        costs += ndarrays.normalize(distance_to_destination) * distance_to_destination_weight
+        costs += ndarrays.normalize(distance_to_destination) * distance_to_destination_penalty_weight
 
-        # 偏离起点到终点的直线惩罚
+        ### 偏离起点到终点的直线惩罚，鼓励路径点向最短路径靠拢
         start_point = self.start_point.to_ndarray()
-        point_deviation_costs = ndarrays.point_to_line_distance(positions, start_point, destination)
-        costs += ndarrays.normalize(point_deviation_costs) * point_deviation_weight
+        distance_to_line = ndarrays.point_to_line_distance(positions, start_point, destination)
+        costs += ndarrays.normalize(distance_to_line) * distance_to_shortest_line_penalty_weight
 
-        # 路径方向约束惩罚（基于方向夹角）
+        ### 路径方向约束惩罚（基于方向夹角），鼓励相邻路径线段不要有太大转折
         angles = ndarrays.cos_angles(positions, start_point, destination)
-        direction_penalty = np.sin(angles)  # 越偏离方向惩罚越大
-        costs += direction_penalty * path_direction_penalty_weight
+        path_direction_penalty = np.sin(angles)  # 越偏离方向惩罚越大
+        costs += path_direction_penalty * path_direction_angle_penalty_weight
 
-        # 路径点聚集惩罚
+        ### 路径点聚集惩罚，鼓励路径点之间有更合理的间距
         previous_point = self.best_path_points[-1]
         point_gathering_costs = np.linalg.norm(positions - previous_point.to_ndarray(), axis=1)
         point_gathering_costs = np.clip(point_gathering_costs, 10, 40)
-        costs += ndarrays.normalize(point_gathering_costs) * point_gathering_weight
+        costs += ndarrays.normalize(point_gathering_costs) * point_gathering_penalty_weight
 
-        # 路径点靠近山体惩罚
+        ### 路径点靠近山体惩罚，鼓励路径点远离山体
         terrain_proximity_costs = np.array(
             [self.terrain.min_horizontal_distance_to_peak_centers(Point.from_ndarray(p)) for p in positions]
         )
         terrain_proximity_costs = np.exp(-terrain_proximity_costs)  # 越近惩罚越大
-        costs += terrain_proximity_costs * terrain_collision_weight
+        costs += terrain_proximity_costs * terrain_collision_penalty_weight
 
-        # 路径点碰撞山体惩罚
+        ### 路径点碰撞山体惩罚，鼓励路径点不要与山体碰撞
         for p in positions:
             point = Point.from_ndarray(p)
             # 检查点是否碰撞
             if self.terrain.check_point_collision(point):
-                costs += 1 * terrain_collision_weight
+                costs += 10 * terrain_collision_penalty_weight
             # 检查线段是否碰撞
             collision_points = self.terrain.check_line_segment_collision_points(previous_point, point)
             if len(collision_points) > 0:
-                costs += len(collision_points) * terrain_collision_weight
+                costs += len(collision_points) * terrain_collision_penalty_weight
 
-        # 选择最优点（不碰撞）并记录
+        # 选择成本最优且不会发生碰撞的点
         sorted_indices = np.argsort(costs)
         for index in sorted_indices:
             candidate_point = Point.from_ndarray(positions[index])
