@@ -5,8 +5,9 @@ from plotly import subplots
 from scipy.interpolate import make_interp_spline
 
 from pyalgorithmlab.common.consts import Consts
+from pyalgorithmlab.common.types import ProblemType
 from pyalgorithmlab.pso.core import ParticleSwarmOptimizer
-from pyalgorithmlab.pso.types import AlgorithmArguments, ProblemType
+from pyalgorithmlab.pso.types import AlgorithmArguments
 from pyalgorithmlab.py3d.terrain import Terrain
 from pyalgorithmlab.py3d.types import Grid, Peak, Point
 from pyalgorithmlab.util import ndarrays, plotly3d

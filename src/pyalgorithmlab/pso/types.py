@@ -1,5 +1,3 @@
-from enum import Enum, unique
-
 from pydantic import BaseModel
 
 
@@ -55,14 +53,3 @@ class AlgorithmArguments(BaseModel):
     所以上界取反方向就可以得到速度下界
     目的是为了平衡算法的探索能力和开发能力
     """
-
-
-@unique
-class ProblemType(Enum):
-    """定义问题类型枚举"""
-
-    MIN = 1
-    """最小化问题"""
-
-    MAX = 2
-    """最大化问题"""

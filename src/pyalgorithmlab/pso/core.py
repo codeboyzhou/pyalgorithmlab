@@ -3,7 +3,8 @@ from collections.abc import Callable
 import numpy as np
 from loguru import logger
 
-from pyalgorithmlab.pso.types import AlgorithmArguments, ProblemType
+from pyalgorithmlab.common.types import ProblemType
+from pyalgorithmlab.pso.types import AlgorithmArguments
 from pyalgorithmlab.util import convergence
 
 
