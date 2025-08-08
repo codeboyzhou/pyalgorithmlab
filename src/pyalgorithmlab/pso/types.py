@@ -35,14 +35,14 @@ class AlgorithmArguments(BaseModel):
     social_coefficient: float
     """社会系数C2"""
 
-    position_bounds_min: tuple[float, ...]
+    position_boundaries_min: tuple[float, ...]
     """
     粒子位置下界，即允许自变量可取的最小值
     tuple类型，有几个自变量，就有几个元素
     对于无约束的问题，可以设置一个很小的值
     """
 
-    position_bounds_max: tuple[float, ...]
+    position_boundaries_max: tuple[float, ...]
     """
     粒子位置上界，即允许自变量可取的最大值
     tuple类型，有几个自变量，就有几个元素

@@ -29,7 +29,7 @@ class ParticleSwarmOptimizer:
         logger.success(f"初始化PSO算法，使用以下参数：{args.model_dump_json(indent=4)}")
 
         shape = (args.num_particles, args.num_dimensions)
-        self.positions = np.random.uniform(args.position_bounds_min, args.position_bounds_max, shape)
+        self.positions = np.random.uniform(args.position_boundaries_min, args.position_boundaries_max, shape)
         self.velocities = np.random.uniform(-args.velocity_bound_max, args.velocity_bound_max, shape)
 
         self.individual_best_positions = self.positions.copy()
@@ -75,7 +75,7 @@ class ParticleSwarmOptimizer:
         """更新粒子位置"""
         self.positions += self.velocities
         # 限制位置边界
-        self.positions = np.clip(self.positions, self.args.position_bounds_min, self.args.position_bounds_max)
+        self.positions = np.clip(self.positions, self.args.position_boundaries_min, self.args.position_boundaries_max)
 
     def _update_individual_best(self) -> None:
         """更新个体最优解"""

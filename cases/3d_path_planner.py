@@ -34,8 +34,8 @@ class PathPlanner3D:
         self.algorithm_args = algorithm_args
 
         # 初始化XY平面坐标
-        x = np.linspace(algorithm_args.position_bounds_min[0], algorithm_args.position_bounds_max[0], 100)
-        y = np.linspace(algorithm_args.position_bounds_min[1], algorithm_args.position_bounds_max[1], 100)
+        x = np.linspace(algorithm_args.position_boundaries_min[0], algorithm_args.position_boundaries_max[0], 100)
+        y = np.linspace(algorithm_args.position_boundaries_min[1], algorithm_args.position_boundaries_max[1], 100)
         xx, yy = np.meshgrid(x, y)
 
         # 初始化地形和山脉坐标
@@ -271,8 +271,8 @@ if __name__ == "__main__":
         num_particles=100,
         num_dimensions=3,
         max_iterations=100,
-        position_bounds_min=(0, 0, 1),
-        position_bounds_max=(100, 100, 5),
+        position_boundaries_min=(0, 0, 1),
+        position_boundaries_max=(100, 100, 5),
         velocity_bound_max=1,
         inertia_weight_max=1.8,
         inertia_weight_min=0.5,
