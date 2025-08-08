@@ -20,25 +20,26 @@ def normalize(vectors: np.ndarray) -> np.ndarray:
     return (clipped - min_val) / (max_val - min_val + Consts.EPSILON)
 
 
-def cos_angles(vectors: np.ndarray, direction_start: np.ndarray, direction_destination: np.ndarray) -> np.ndarray:
+def angle_degrees(point1: np.ndarray, point2: np.ndarray, point3: np.ndarray) -> np.ndarray:
     """
-    计算多个向量与某个方向向量的余弦夹角
+    计算向量 point1 -> point2 与 向量 point2 -> point3 的夹角角度值
 
     Args:
-        vectors: 输入的向量，形状为 (n, m)
-        direction_start: 方向向量起点，形状为 (m,)
-        direction_destination: 方向向量终点，形状为 (m,)
+        point1: 输入点1
+        point2: 输入点2
+        point3: 输入点3
 
     Returns:
-        np.ndarray: 每个向量与方向向量的余弦夹角，形状为 (n,)
+        np.ndarray: 向量 point1 -> point2 与 向量 point2 -> point3 的夹角角度值，形状为 (n,)
     """
-    direction = direction_destination - direction_start
-    unit_direction = direction / np.linalg.norm(direction)
-    vectors_to_direction = vectors - direction_start
-    vectors_to_direction_norms = np.linalg.norm(vectors_to_direction, axis=1) + Consts.EPSILON
-    vectors_cos_angles = np.dot(vectors_to_direction, unit_direction) / vectors_to_direction_norms
-    angles = np.arccos(np.clip(vectors_cos_angles, -1.0, 1.0))
-    return angles
+    vector12 = point2 - point1
+    vector23 = point3 - point2
+    vector12_norm = np.linalg.norm(vector12)
+    vector23_norm = np.linalg.norm(vector23)
+    cos_angles = np.dot(vector12, vector23) / (vector12_norm * vector23_norm.astype(np.int64))
+    cos_angles = np.clip(cos_angles, -1.0, 1.0)
+    angle_rad = np.arccos(cos_angles)
+    return np.degrees(angle_rad)
 
 
 def point_to_line_distance(points: np.ndarray, line_endpoint_a: np.ndarray, line_endpoint_b: np.ndarray) -> np.ndarray:
@@ -53,6 +54,9 @@ def point_to_line_distance(points: np.ndarray, line_endpoint_a: np.ndarray, line
     Returns:
         np.ndarray: 每个点到直线的距离，形状为 (n,)
     """
+    if np.array_equal(line_endpoint_a, line_endpoint_b):
+        raise ZeroDivisionError("line_endpoint_a should be different from line_endpoint_b")
+
     ab = line_endpoint_b - line_endpoint_a
     ap = points - line_endpoint_a
     cross = np.cross(ap, ab)

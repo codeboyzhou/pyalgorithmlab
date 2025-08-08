@@ -4,6 +4,7 @@ from loguru import logger
 from plotly import subplots
 from scipy.interpolate import make_interp_spline
 
+from pyalgorithmlab.common.consts import Consts
 from pyalgorithmlab.pso.core import ParticleSwarmOptimizer
 from pyalgorithmlab.pso.types import AlgorithmArguments, ProblemType
 from pyalgorithmlab.py3d.terrain import Terrain
@@ -184,10 +185,13 @@ class PathPlanner3D:
         distance_to_line = ndarrays.point_to_line_distance(positions, start_point, destination)
         costs += ndarrays.normalize(distance_to_line) * distance_to_shortest_line_penalty_weight
 
-        ### 路径方向约束惩罚（基于方向夹角），鼓励相邻路径线段不要有太大转折
-        angles = ndarrays.cos_angles(positions, start_point, destination)
-        path_direction_penalty = np.sin(angles)  # 越偏离方向惩罚越大
-        costs += path_direction_penalty * path_direction_angle_penalty_weight
+        ### 路径方向约束惩罚，基于方向夹角，鼓励相邻路径线段不要有太大转折
+        if len(self.best_path_points) >= 3:
+            point1 = self.best_path_points[-2].to_ndarray()
+            point2 = self.best_path_points[-1].to_ndarray()
+            angles = np.array([ndarrays.angle_degrees(point1, point2, point3) for point3 in positions])
+            path_direction_penalty = np.sin(angles)  # 越偏离方向惩罚越大
+            costs += path_direction_penalty * path_direction_angle_penalty_weight
 
         ### 路径点聚集惩罚，鼓励路径点之间有更合理的间距
         previous_point = self.best_path_points[-1]
@@ -214,18 +218,52 @@ class PathPlanner3D:
                 costs += len(collision_points) * terrain_collision_penalty_weight
 
         # 选择成本最优且满足约束条件的点
+        candidate_point = self.choose_candidate_point(costs, positions, previous_point)
+        if candidate_point is not None:
+            self.best_path_points.append(candidate_point)
+
+        return costs
+
+    def choose_candidate_point(self, costs: np.ndarray, positions: np.ndarray, previous_point: Point) -> Point | None:
+        """
+        选择成本最优且满足约束条件的路径点
+
+        Args:
+            costs: 当前路径总成本数组，形状为 (num_particles,)
+            positions: 粒子位置数组，形状为 (num_particles, num_dimensions)
+            previous_point: 前一个路径点
+
+        Returns:
+            成本最优且满足约束条件的路径点
+        """
         sorted_indices = np.argsort(costs)
         for index in sorted_indices:
             candidate_point = Point.from_ndarray(positions[index])
-            is_point_collision = self.terrain.check_point_collision(candidate_point)
-            collision_points = self.terrain.check_line_segment_collision_points(previous_point, candidate_point)
-            height_diff_to_destination = abs(candidate_point.z - self.destination.z)
-            # 不碰撞，不穿透，高度合理
-            if not is_point_collision and len(collision_points) == 0 and height_diff_to_destination < 0.5:
-                self.best_path_points.append(candidate_point)
-                break  # 仅添加一个最优可行点
 
-        return costs
+            # 丢弃会发生地形碰撞的点
+            if self.terrain.check_point_collision(candidate_point):
+                continue
+
+            # 丢弃会发生地形穿透的点
+            if self.terrain.check_line_segment_collision_points(previous_point, candidate_point):
+                continue
+
+            # 丢弃偏离终点高度大于0.1的点
+            height_diff_to_destination = abs(candidate_point.z - self.destination.z)
+            if height_diff_to_destination - 0.1 > Consts.EPSILON:
+                continue
+
+            # 丢弃相邻路径段水平转角大于15度的点
+            if len(self.best_path_points) >= 3:
+                point1 = self.best_path_points[-2].to_ndarray()
+                point2 = self.best_path_points[-1].to_ndarray()
+                angle = ndarrays.angle_degrees(point1, point2, candidate_point.to_ndarray())
+                if angle - 15 > Consts.EPSILON:
+                    continue
+
+            return candidate_point
+
+        return None
 
 
 if __name__ == "__main__":
