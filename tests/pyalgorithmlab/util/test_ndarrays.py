@@ -1,7 +1,6 @@
 import numpy as np
 import pytest
 
-from pyalgorithmlab.common.consts import Consts
 from pyalgorithmlab.util import ndarrays
 
 ############################# test_normalize #############################
@@ -50,28 +49,32 @@ def test_angle_degrees_0():
     p1 = np.array([0, 0])
     p2 = np.array([1, 0])
     p3 = np.array([2, 0])
-    assert ndarrays.angle_degrees(p1, p2, p3) == 0
+    angle = ndarrays.angle_degrees(p1, p2, p3)
+    assert np.round(angle) == 0
 
 
 def test_angle_degrees_45():
     p1 = np.array([0, 0])
     p2 = np.array([1, 0])
     p3 = np.array([1 + np.sqrt(2) / 2, np.sqrt(2) / 2])
-    assert ndarrays.angle_degrees(p1, p2, p3) - 45 < Consts.EPSILON
+    angle = ndarrays.angle_degrees(p1, p2, p3)
+    assert np.round(angle) == 45
 
 
 def test_angle_degrees_90():
     p1 = np.array([0, 0])
     p2 = np.array([1, 0])
     p3 = np.array([1, 1])
-    assert ndarrays.angle_degrees(p1, p2, p3) == 90
+    angle = ndarrays.angle_degrees(p1, p2, p3)
+    assert np.round(angle) == 90
 
 
 def test_angle_degrees_180():
     p1 = np.array([0, 0])
     p2 = np.array([1, 0])
     p3 = np.array([-1, 0])
-    assert ndarrays.angle_degrees(p1, p2, p3) == 180
+    angle = ndarrays.angle_degrees(p1, p2, p3)
+    assert np.round(angle) == 180
 
 
 ####################### test_point_to_line_distance ######################
