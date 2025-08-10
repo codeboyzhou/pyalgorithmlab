@@ -6,9 +6,9 @@ from pyalgorithmlab.pso.types import AlgorithmArguments
 from pyalgorithmlab.util import convergence
 
 
-def xy_square_sum_minimization_problem(positions: np.ndarray) -> np.ndarray:
+def xyz_square_sum_min_problem(positions: np.ndarray) -> np.ndarray:
     """
-    这个函数定义了一个简单的优化问题：最小化 f(x, y) = x^2 + y^2
+    这个函数定义了一个简单的优化问题：最小化 f(x, y, z) = x^2 + y^2 + z^2
 
     Args:
         positions: PSO算法粒子的位置数组，形状为 (num_particles, num_dimensions)
@@ -19,15 +19,15 @@ def xy_square_sum_minimization_problem(positions: np.ndarray) -> np.ndarray:
     return np.sum(positions**2, axis=1)
 
 
-def test_xy_square_sum_minimization_problem():
+def test_xyz_square_sum_min_problem():
     """
-    测试 xy_square_sum_minimization_problem 函数
-    该函数用于测试 PSO 算法在二维最小化问题上的表现
+    测试 xyz_square_sum_min_problem 函数
+    该函数用于测试 PSO 算法在三维最小化问题上的表现
     """
     # 初始化PSO算法参数
     pso_arguments = AlgorithmArguments(
         num_particles=100,
-        num_dimensions=2,
+        num_dimensions=3,
         max_iterations=100,
         position_boundaries_min=(-10,),
         position_boundaries_max=(10,),
@@ -42,7 +42,7 @@ def test_xy_square_sum_minimization_problem():
     pso_optimizer = ParticleSwarmOptimizer(
         args=pso_arguments,
         problem_type=ProblemType.MIN,
-        objective_function=xy_square_sum_minimization_problem,
+        objective_function=xyz_square_sum_min_problem,
     )
 
     # 执行算法迭代
