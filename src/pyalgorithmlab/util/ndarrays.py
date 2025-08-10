@@ -36,7 +36,7 @@ def angle_degrees(point1: np.ndarray, point2: np.ndarray, point3: np.ndarray) ->
     vector23 = point3 - point2
     vector12_norm = np.linalg.norm(vector12)
     vector23_norm = np.linalg.norm(vector23)
-    cos_angles = np.dot(vector12, vector23) / (vector12_norm * vector23_norm.astype(np.int64))
+    cos_angles = np.dot(vector12, vector23) / (vector12_norm * vector23_norm.astype(np.int64) + Consts.EPSILON)
     cos_angles = np.clip(cos_angles, -1.0, 1.0)
     angle_rad = np.arccos(cos_angles)
     return np.degrees(angle_rad)
