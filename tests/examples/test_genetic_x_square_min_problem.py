@@ -1,8 +1,7 @@
 import numpy as np
 
+from pyalgorithmlab.algorithm.genetic import AlgorithmArguments, GeneticAlgorithm
 from pyalgorithmlab.common.types import ProblemType
-from pyalgorithmlab.genetic.core import GeneticAlgorithm
-from pyalgorithmlab.genetic.types import AlgorithmArguments
 from pyalgorithmlab.util import convergence
 
 

@@ -1,6 +1,6 @@
 import numpy as np
-import pytest
 
+import pytest
 from pyalgorithmlab.util import ndarrays
 
 ############################# test_normalize #############################

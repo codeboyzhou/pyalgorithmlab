@@ -4,10 +4,9 @@ from loguru import logger
 from plotly import subplots
 from scipy.interpolate import make_interp_spline
 
+from pyalgorithmlab.algorithm.genetic import AlgorithmArguments, GeneticAlgorithm
 from pyalgorithmlab.common.consts import Consts
 from pyalgorithmlab.common.types import ProblemType
-from pyalgorithmlab.genetic.core import GeneticAlgorithm
-from pyalgorithmlab.genetic.types import AlgorithmArguments
 from pyalgorithmlab.py3d.terrain import Terrain
 from pyalgorithmlab.py3d.types import Grid, Peak, Point
 from pyalgorithmlab.util import ndarrays, plotly3d

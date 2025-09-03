@@ -1,7 +1,7 @@
 import numpy as np
-import pytest
 from loguru import logger
 
+import pytest
 from pyalgorithmlab.py3d.terrain import Terrain
 from pyalgorithmlab.py3d.types import Peak, Point
 
