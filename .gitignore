@@ -9,6 +9,7 @@ __pycache__/
 .ipynb_checkpoints/
 
 # Coverage files
+coverage.xml
 .coverage
 htmlcov/
 pytest/
