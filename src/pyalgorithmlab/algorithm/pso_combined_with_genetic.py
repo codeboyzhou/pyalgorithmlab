@@ -104,8 +104,210 @@ class GeneticAlgorithmArguments(BaseModel):
     """变异概率"""
 
 
-class ParticleSwarmOptimizer:
-    """粒子群优化算法（Particle Swarm Optimization）核心实现"""
+class EnhancedGeneticAlgorithm:
+    """遗传算法（Genetic Algorithm）改进版核心实现，会将这个算法的实现作为粒子群算法的优化算子"""
+
+    def __init__(self, args: GeneticAlgorithmArguments, problem_type: ProblemType) -> None:
+        """
+        初始化遗传算法
+
+        Args:
+            args: 遗传算法参数
+            problem_type: 问题类型
+        """
+        logger.success(f"初始化遗传算法，使用以下参数：{args.model_dump_json(indent=4)}")
+
+        self.args = args
+        self.problem_type = problem_type
+
+        initial_fitness = np.inf if problem_type == ProblemType.MIN else -np.inf
+        self.fitness = np.full(self.args.population_size, initial_fitness)
+
+        logger.success("遗传算法初始化成功")
+
+    def select(self, advantage_individuals: np.ndarray) -> np.ndarray:
+        """
+        选择：从PSO算法产生的优势个体中选择优良个体作为父代
+
+        策略：锦标赛选择
+
+        Args:
+            advantage_individuals: PSO算法产生的优势个体
+
+        Returns:
+            父代选择结果
+        """
+        individual_indices = np.arange(self.args.population_size)
+        tournament_size = self.args.tournament_size
+        selected_as_parents = []
+        for i in range(self.args.population_size):
+            random_indices = np.random.choice(individual_indices, size=tournament_size, replace=False)
+            individual_fitness_values = self.fitness[random_indices]
+            best_fitness_index = (
+                np.argmin(individual_fitness_values)
+                if self.problem_type == ProblemType.MIN
+                else np.argmax(individual_fitness_values)
+            )
+            winner_index = random_indices[best_fitness_index]
+            selected_as_parents.append(advantage_individuals[winner_index])
+        return np.array(selected_as_parents)
+
+    def crossover(
+        self, selected_advantage_individual: np.ndarray, disadvantage_individuals: np.ndarray, current_iteration: int
+    ) -> np.ndarray:
+        """
+        交叉：select()结果作为父本，disadvantage_individuals作为母本，进行交叉
+
+        策略：采用基于交叉概率的算数交叉和模拟二进制交叉结合的交叉策略
+
+        Args:
+            selected_advantage_individual: 选择结果中的优势个体
+            disadvantage_individuals: PSO算法产生的劣势个体
+            current_iteration: 当前迭代次数
+
+        Returns:
+            子代选择结果，形状为 (population_size, num_dimensions)
+        """
+        # 动态计算交叉率
+        sin_coefficient = 0.5
+        golden_ratio = (1 + np.sqrt(5)) / 2
+        crossover_rate_decay = 0.01
+        computed_crossover_rate = (
+            sin_coefficient
+            * (1 + np.sin(2 * np.pi * self.args.crossover_rate / (1 + golden_ratio)))
+            * np.exp(-crossover_rate_decay * current_iteration)
+        )
+
+        # 动态计算交叉参数beta
+        particle_distribution_coefficient_eta = 2 * (1 + 0.2 * np.cos(2 * np.pi * current_iteration / 15))
+        power = 1 / (particle_distribution_coefficient_eta + 1)
+        random_num = np.random.random()
+        if random_num <= 0.5:
+            crossover_beta = np.power(2 * random_num, power)
+        else:
+            crossover_beta = np.power(1 / (2 - 2 * random_num), power)
+
+        # 模拟二进制交叉（simulated binary crossover）
+        random_mate_index = np.random.randint(self.args.population_size)
+        mate = disadvantage_individuals[random_mate_index]
+        child1 = computed_crossover_rate * selected_advantage_individual + (1 - computed_crossover_rate) * mate
+        child2 = computed_crossover_rate * mate + (1 - computed_crossover_rate) * selected_advantage_individual
+
+        # 子代增加t分布扰动，增加种群搜索多样性，防止算法陷入局部最优
+        standard_t_value = np.random.standard_t(df=3, size=selected_advantage_individual.shape)
+        child1 = 0.5 * ((1 + crossover_beta) * child1 + (1 - crossover_beta) * child2) + 2 * standard_t_value
+        child2 = 0.5 * ((1 + crossover_beta) * child2 + (1 - crossover_beta) * child1) + 2 * standard_t_value
+
+        # 限制子代基因值在有效范围内
+        child1 = np.clip(
+            child1, self.args.individual_available_boundaries_min, self.args.individual_available_boundaries_max
+        )
+        child2 = np.clip(
+            child2, self.args.individual_available_boundaries_min, self.args.individual_available_boundaries_max
+        )
+
+        # 随机选择一个子代
+        random_index = np.random.randint(2)
+        return child1 if random_index == 0 else child2
+
+    def mutate(self, individual: np.ndarray, current_iteration: int) -> np.ndarray:
+        """
+        变异：随机改变个体的基因，增加种群多样性，防止算法陷入局部最优
+
+        策略：基于莱维飞行变异策略
+
+        Args:
+            individual: 个体
+            current_iteration: 当前迭代次数
+
+        Returns:
+            变异后的个体
+        """
+        # 动态计算变异率
+        sin_coefficient = 0.5
+        golden_ratio = (1 + np.sqrt(5)) / 2
+        mutation_rate_decay = 0.01
+        computed_mutation_rate = (
+            sin_coefficient
+            * (1 + np.sin(2 * np.pi * self.args.mutation_rate / (1 + golden_ratio)))
+            * np.exp(-mutation_rate_decay * current_iteration)
+        )
+
+        # 计算莱维飞行步长
+        gaussian_distribution_random_num_u = np.random.normal(loc=0, scale=1, size=individual.shape)
+        gaussian_distribution_random_num_v = np.random.normal(loc=0, scale=1, size=individual.shape)
+        random_num1 = np.random.random()
+        random_num2 = np.random.random()
+        levy_flight_alpha = max(0.6 - 0.1 * current_iteration / self.args.max_generations, 0.5)
+        levy_flight_beta = max(1.5 - 0.1 * current_iteration / self.args.max_generations, 1)
+        levy_flight_step_size = (
+            gaussian_distribution_random_num_u
+            / np.power(np.abs(gaussian_distribution_random_num_v), 1 / levy_flight_beta)
+            * levy_flight_alpha
+            * random_num1
+            * np.power(np.abs(random_num2), 1 / levy_flight_beta)
+        )
+
+        # 子代变异
+        mutated_individual = individual + computed_mutation_rate * levy_flight_step_size
+        # 限制子代基因值在有效范围内
+        mutated_individual = np.clip(
+            mutated_individual,
+            self.args.individual_available_boundaries_min,
+            self.args.individual_available_boundaries_max,
+        )
+        return mutated_individual
+
+    def start_iterating(
+        self,
+        objective_function: Callable[[np.ndarray], np.ndarray],
+        advantage_individuals: np.ndarray,
+        disadvantage_individuals: np.ndarray,
+    ) -> list[float]:
+        """
+        开始迭代
+
+        Args:
+            objective_function: 待优化问题的目标函数
+            advantage_individuals: PSO算法产生的优势个体
+            disadvantage_individuals: PSO算法产生的劣势个体
+
+        Returns:
+            每次迭代后的最优适应度，全部记录下来用于绘制迭代曲线
+        """
+        best_fitness_values = []  # 每次迭代后的最优适应度，全部记录下来用于绘制迭代曲线
+        for generation in range(self.args.max_generations):
+            # 提前收敛检查
+            if convergence.is_converged(best_fitness_values):
+                logger.success(f"遗传算法在第{generation}次迭代后已经收敛")
+                break
+
+            # 评估当前种群中所有个体的适应度
+            self.fitness = objective_function(disadvantage_individuals)
+
+            # 记录当前代的最优适应度
+            best_fitness = np.min(self.fitness) if self.problem_type == ProblemType.MIN else np.max(self.fitness)
+            best_fitness_values.append(best_fitness)
+
+            # 选择父代
+            selected_advantage_individuals = self.select(advantage_individuals)
+
+            # 生成子代
+            offspring = []
+            for father in selected_advantage_individuals:
+                child = self.crossover(father, disadvantage_individuals, generation)
+                child = self.mutate(child, generation)
+                offspring.append(child)
+
+            # 个体进化
+            disadvantage_individuals = np.array(offspring)
+
+        logger.success(f"遗传算法迭代结束，当前最优适应度为{best_fitness_values[-1]:.6f}")
+        return best_fitness_values
+
+
+class EnhancedParticleSwarmOptimizer:
+    """粒子群优化算法（Particle Swarm Optimization）改进版核心实现"""
 
     def __init__(
         self,
@@ -185,13 +387,13 @@ class ParticleSwarmOptimizer:
 
     def _update_individual_best(self) -> None:
         """更新个体最优解"""
-        fitness = self.objective_function(self.positions)
+        self.fitness = self.objective_function(self.positions)
         better_indices = (
-            fitness < self.individual_best_fitness
+            self.fitness < self.individual_best_fitness
             if self.problem_type == ProblemType.MIN
-            else fitness > self.individual_best_fitness
+            else self.fitness > self.individual_best_fitness
         )
-        self.individual_best_fitness[better_indices] = fitness[better_indices]
+        self.individual_best_fitness[better_indices] = self.fitness[better_indices]
         self.individual_best_positions[better_indices] = self.positions[better_indices]
 
     def _update_global_best(self) -> None:
@@ -221,211 +423,46 @@ class ParticleSwarmOptimizer:
         """
         return x < y if self.problem_type == ProblemType.MIN else x > y
 
-    def start_iterating(self) -> list[float]:
+    def start_iterating(self, genetic_algorithm_operator: EnhancedGeneticAlgorithm) -> list[float]:
         """
         开始执行算法迭代
+
+        Args:
+            genetic_algorithm_operator: 遗传算法算子
 
         Returns:
             每次迭代后的最优适应度，全部记录下来用于绘制迭代曲线
         """
         best_fitness_values = []  # 每次迭代后的最优适应度，全部记录下来用于绘制迭代曲线
+
         for iteration in range(self.args.max_iterations):
+            # PSO提前收敛检查
             if convergence.is_converged(best_fitness_values):
                 logger.success(f"PSO算法在第{iteration}次迭代后已经收敛")
                 break
+
+            # PSO迭代核心流程
             self._update_velocities(iteration)
             self._update_positions()
             self._update_individual_best()
             self._update_global_best()
             best_fitness_values.append(self.global_best_fitness)
-        logger.success(f"PSO算法迭代结束，当前最优适应度为{self.global_best_fitness:.6f}")
-        return best_fitness_values
 
+            # 按适应度值排序
+            sorted_indices = np.argsort(self.fitness)
+            sorted_individuals = self.positions[sorted_indices]
 
-class GeneticAlgorithm:
-    """遗传算法（Genetic Algorithm）核心实现"""
+            # 前一半作为优势个体，后一半作为劣势个体
+            advantage_individuals = sorted_individuals[: self.args.num_particles // 2]
+            disadvantage_individuals = sorted_individuals[self.args.num_particles // 2 :]
 
-    def __init__(self, args: GeneticAlgorithmArguments, problem_type: ProblemType) -> None:
-        """
-        初始化遗传算法
+            # PSO继续优化优势个体
+            self.positions[: self.args.num_particles // 2] = advantage_individuals
 
-        Args:
-            args: 遗传算法参数
-            problem_type: 问题类型
-        """
-        logger.success(f"初始化遗传算法，使用以下参数：{args.model_dump_json(indent=4)}")
-
-        self.args = args
-        self.problem_type = problem_type
-
-        shape = (args.population_size, args.num_dimensions)
-        self.individuals = np.random.uniform(
-            args.individual_available_boundaries_min, args.individual_available_boundaries_max, shape
-        )
-
-        initial_fitness = np.inf if problem_type == ProblemType.MIN else -np.inf
-        self.fitness = np.full(self.args.population_size, initial_fitness)
-
-        logger.success("遗传算法初始化成功")
-
-    def select(self) -> np.ndarray:
-        """
-        选择：从种群中选择优良个体作为父代
-
-        策略：锦标赛选择
-
-        Returns:
-            父代选择结果，形状为 (population_size, num_dimensions)
-        """
-        individual_indices = np.arange(self.args.population_size)
-        tournament_size = self.args.tournament_size
-        selected_as_parents = []
-        for i in range(self.args.population_size):
-            random_indices = np.random.choice(individual_indices, size=tournament_size, replace=False)
-            individual_fitness_values = self.fitness[random_indices]
-            best_fitness_index = (
-                np.argmin(individual_fitness_values)
-                if self.problem_type == ProblemType.MIN
-                else np.argmax(individual_fitness_values)
+            # 遗传算法优化劣势个体
+            genetic_algorithm_operator.start_iterating(
+                self.objective_function, advantage_individuals, disadvantage_individuals
             )
-            winner_index = random_indices[best_fitness_index]
-            selected_as_parents.append(self.individuals[winner_index])
-        return np.array(selected_as_parents)
 
-    def crossover(self, parent: np.ndarray, current_iteration: int) -> np.ndarray:
-        """
-        交叉：由父代产生新的子代个体
-
-        策略：采用基于交叉概率的算数交叉和模拟二进制交叉结合的交叉策略
-
-
-        Args:
-            parent: 父代选择结果，形状为 (population_size, num_dimensions)
-            current_iteration: 当前迭代次数
-
-        Returns:
-            子代选择结果，形状为 (population_size, num_dimensions)
-        """
-        # 动态计算交叉率
-        sin_coefficient = 0.5
-        golden_ratio = (1 + np.sqrt(5)) / 2
-        crossover_rate_decay = 0.01
-        computed_crossover_rate = (
-            sin_coefficient
-            * (1 + np.sin(2 * np.pi * self.args.crossover_rate / (1 + golden_ratio)))
-            * np.exp(-crossover_rate_decay * current_iteration)
-        )
-
-        # 动态计算交叉参数beta
-        particle_distribution_coefficient_eta = 2 * (1 + 0.2 * np.cos(2 * np.pi * current_iteration / 15))
-        power = 1 / (particle_distribution_coefficient_eta + 1)
-        random_num = np.random.random()
-        if random_num <= 0.5:
-            crossover_beta = np.power(2 * random_num, power)
-        else:
-            crossover_beta = np.power(1 / (2 - 2 * random_num), power)
-
-        # 模拟二进制交叉（simulated binary crossover）
-        random_mate_index = np.random.randint(self.args.population_size)
-        mate = self.individuals[random_mate_index]
-        child1 = computed_crossover_rate * parent + (1 - computed_crossover_rate) * mate
-        child2 = computed_crossover_rate * mate + (1 - computed_crossover_rate) * parent
-
-        # 子代增加t分布扰动，增加种群搜索多样性，防止算法陷入局部最优
-        standard_t_value = np.random.standard_t(df=3, size=parent.shape)
-        child1 = 0.5 * ((1 + crossover_beta) * child1 + (1 - crossover_beta) * child2) + 2 * standard_t_value
-        child2 = 0.5 * ((1 + crossover_beta) * child2 + (1 - crossover_beta) * child1) + 2 * standard_t_value
-
-        # 限制子代基因值在有效范围内
-        child1 = np.clip(
-            child1, self.args.individual_available_boundaries_min, self.args.individual_available_boundaries_max
-        )
-        child2 = np.clip(
-            child2, self.args.individual_available_boundaries_min, self.args.individual_available_boundaries_max
-        )
-
-        # 随机选择一个子代
-        random_index = np.random.randint(2)
-        return child1 if random_index == 0 else child2
-
-    def mutate(self, individual: np.ndarray, current_iteration: int) -> np.ndarray:
-        """
-        变异：随机改变个体的基因，增加种群多样性，防止算法陷入局部最优
-
-        策略：采用基于莱维飞行的多项式变异
-
-        Args:
-            individual: 个体
-            current_iteration: 当前迭代次数
-
-        Returns:
-            变异后的个体
-        """
-        # 动态计算变异率
-        sin_coefficient = 0.5
-        golden_ratio = (1 + np.sqrt(5)) / 2
-        mutation_rate_decay = 0.01
-        computed_mutation_rate = (
-            sin_coefficient
-            * (1 + np.sin(2 * np.pi * self.args.mutation_rate / (1 + golden_ratio)))
-            * np.exp(-mutation_rate_decay * current_iteration)
-        )
-
-        # 计算莱维飞行步长
-        gaussian_distribution_random_num_u = np.random.normal(loc=0, scale=1, size=individual.shape)
-        gaussian_distribution_random_num_v = np.random.normal(loc=0, scale=1, size=individual.shape)
-        random_num1 = np.random.random()
-        random_num2 = np.random.random()
-        levy_flight_alpha = max(0.6 - 0.1 * current_iteration / self.args.max_generations, 0.5)
-        levy_flight_beta = max(1.5 - 0.1 * current_iteration / self.args.max_generations, 1)
-        levy_flight_step_size = (
-            gaussian_distribution_random_num_u
-            / np.power(np.abs(gaussian_distribution_random_num_v), 1 / levy_flight_beta)
-            * levy_flight_alpha
-            * random_num1
-            * np.power(np.abs(random_num2), 1 / levy_flight_beta)
-        )
-
-        # 子代变异
-        mutated_individual = individual + computed_mutation_rate * levy_flight_step_size
-        # 限制子代基因值在有效范围内
-        mutated_individual = np.clip(
-            mutated_individual,
-            self.args.individual_available_boundaries_min,
-            self.args.individual_available_boundaries_max,
-        )
-        return mutated_individual
-
-    def start_iterating(self, objective_function: Callable[[np.ndarray], np.ndarray]) -> list[float]:
-        """
-        开始迭代
-        """
-        best_fitness_values = []  # 每次迭代后的最优适应度，全部记录下来用于绘制迭代曲线
-        for generation in range(self.args.max_generations):
-            # 提前收敛检查
-            if convergence.is_converged(best_fitness_values):
-                logger.success(f"遗传算法在第{generation}次迭代后已经收敛")
-                break
-
-            # 评估当前种群中所有个体的适应度
-            self.fitness = objective_function(self.individuals)
-
-            # 记录当前代的最优适应度
-            best_fitness = np.min(self.fitness) if self.problem_type == ProblemType.MIN else np.max(self.fitness)
-            best_fitness_values.append(best_fitness)
-
-            # 选择父代
-            parents = self.select()
-
-            # 生成子代
-            offspring = []
-            for p in parents:
-                child = self.crossover(p, generation)
-                child = self.mutate(child, generation)
-                offspring.append(child)
-
-            # 个体进化
-            self.individuals = np.array(offspring)
-
-        logger.success(f"遗传算法迭代结束，当前最优适应度为{best_fitness_values[-1]:.6f}")
+        logger.success(f"PSO算法迭代结束，当前最优适应度为{self.global_best_fitness:.6f}")
         return best_fitness_values
