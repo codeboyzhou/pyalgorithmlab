@@ -20,18 +20,18 @@ class PSOAlgorithmArguments(BaseModel):
     max_iterations: int
     """最大迭代次数"""
 
-    inertia_weight_max: float
-    """
-    最大惯性权重
-    用于实现惯性权重的线性递减
-    初始值较大可以增加算法的探索能力
-    """
-
     inertia_weight_min: float
     """
     最小惯性权重
     用于实现惯性权重的线性递减
     最终值较小可以增加算法的开发能力
+    """
+
+    inertia_weight_max: float
+    """
+    最大惯性权重
+    用于实现惯性权重的线性递减
+    初始值较大可以增加算法的探索能力
     """
 
     cognitive_coefficient_min: float
@@ -263,7 +263,7 @@ class EnhancedGeneticAlgorithm:
         objective_function: Callable[[np.ndarray], np.ndarray],
         advantage_individuals: np.ndarray,
         disadvantage_individuals: np.ndarray,
-    ) -> list[float]:
+    ) -> np.ndarray:
         """
         开始迭代
 
@@ -273,21 +273,11 @@ class EnhancedGeneticAlgorithm:
             disadvantage_individuals: PSO算法产生的劣势个体
 
         Returns:
-            每次迭代后的最优适应度，全部记录下来用于绘制迭代曲线
+            遗传算法优化后的劣势个体
         """
-        best_fitness_values = []  # 每次迭代后的最优适应度，全部记录下来用于绘制迭代曲线
         for generation in range(self.args.max_generations):
-            # 提前收敛检查
-            if convergence.is_converged(best_fitness_values):
-                logger.success(f"遗传算法在第{generation}次迭代后已经收敛")
-                break
-
-            # 评估当前种群中所有个体的适应度
+            # 调用目标函数评估劣势个体的适应度
             self.fitness = objective_function(disadvantage_individuals)
-
-            # 记录当前代的最优适应度
-            best_fitness = np.min(self.fitness) if self.problem_type == ProblemType.MIN else np.max(self.fitness)
-            best_fitness_values.append(best_fitness)
 
             # 选择父代
             selected_advantage_individuals = self.select(advantage_individuals)
@@ -302,8 +292,8 @@ class EnhancedGeneticAlgorithm:
             # 个体进化
             disadvantage_individuals = np.array(offspring)
 
-        logger.success(f"遗传算法迭代结束，当前最优适应度为{best_fitness_values[-1]:.6f}")
-        return best_fitness_values
+        logger.success("遗传算法迭代结束，返回优化后的劣势个体")
+        return disadvantage_individuals
 
 
 class EnhancedParticleSwarmOptimizer:
@@ -460,9 +450,14 @@ class EnhancedParticleSwarmOptimizer:
             self.positions[: self.args.num_particles // 2] = advantage_individuals
 
             # 遗传算法优化劣势个体
-            genetic_algorithm_operator.start_iterating(
+            optimized_disadvantage_individuals = genetic_algorithm_operator.start_iterating(
                 self.objective_function, advantage_individuals, disadvantage_individuals
             )
+
+            # 合并优势个体和优化后的劣势个体
+            self.positions[self.args.num_particles // 2 :] = optimized_disadvantage_individuals
+
+            logger.debug(f"PSO算法当前迭代次数：{iteration}，当前全局最优适应度：{self.global_best_fitness:.6f}")
 
         logger.success(f"PSO算法迭代结束，当前最优适应度为{self.global_best_fitness:.6f}")
         return best_fitness_values

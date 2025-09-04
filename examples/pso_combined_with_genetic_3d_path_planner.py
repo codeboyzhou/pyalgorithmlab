@@ -277,14 +277,14 @@ if __name__ == "__main__":
         num_dimensions=3,
         max_iterations=100,
         position_boundaries_min=(0, 0, 1),
-        position_boundaries_max=(100, 100, 5),
+        position_boundaries_max=(100, 100, 3),
         velocity_bound_max=1,
-        inertia_weight_max=1.8,
-        inertia_weight_min=0.5,
-        cognitive_coefficient_min=1.6,
-        cognitive_coefficient_max=1.6,
-        social_coefficient_min=1.2,
-        social_coefficient_max=1.2,
+        inertia_weight_min=0.4,
+        inertia_weight_max=0.9,
+        cognitive_coefficient_min=1.5,
+        cognitive_coefficient_max=2.0,
+        social_coefficient_min=1.5,
+        social_coefficient_max=2.0,
     )
 
     path_planner = PathPlanner3D(
