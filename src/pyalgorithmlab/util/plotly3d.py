@@ -1,7 +1,9 @@
 import math
 
+import numpy as np
 import plotly.graph_objects as go
 from plotly.graph_objs import Scatter3d
+from scipy.interpolate import make_interp_spline
 
 from pyalgorithmlab.py3d.types import Point
 
@@ -47,3 +49,34 @@ def circle_scatter3d(point: Point, name: str, color: str, size: int = 5) -> Scat
         mode="markers",
         marker={"color": color, "size": size, "symbol": "circle"},
     )
+
+
+def smooth_path(
+    x: list[float], y: list[float], z: list[float], degree: int = 3
+) -> tuple[list[float], list[float], list[float]]:
+    """
+    使用B样条曲线平滑路径，默认阶数为3
+
+    Args:
+        x: 路径的x坐标列表
+        y: 路径的y坐标列表
+        z: 路径的z坐标列表
+        degree: B样条曲线的阶数
+
+    Returns:
+        平滑后的路径坐标列表
+    """
+    # 计算B样条曲线
+    t = np.linspace(start=0, stop=1, num=len(x))
+    x_spline = make_interp_spline(t, np.array(x), k=degree)
+    y_spline = make_interp_spline(t, np.array(y), k=degree)
+    z_spline = make_interp_spline(t, np.array(z), k=degree)
+
+    # 生成平滑后的路径坐标
+    t_smooth = np.linspace(t.min(), t.max(), num=100)
+    x_smooth = x_spline(t_smooth)
+    y_smooth = y_spline(t_smooth)
+    z_smooth = z_spline(t_smooth)
+
+    # 返回平滑后的路径坐标
+    return x_smooth.tolist(), y_smooth.tolist(), z_smooth.tolist()

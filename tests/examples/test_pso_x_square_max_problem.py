@@ -41,7 +41,7 @@ def test_x_square_max_problem():
     pso_optimizer = ParticleSwarmOptimizer(
         args=pso_arguments,
         problem_type=ProblemType.MAX,
-        objective_function=x_square_max_problem,
+        fitness_function=x_square_max_problem,
     )
 
     # 执行算法迭代

@@ -2,7 +2,6 @@ import numpy as np
 import plotly.graph_objects as go
 from loguru import logger
 from plotly import subplots
-from scipy.interpolate import make_interp_spline
 
 from pyalgorithmlab.algorithm.pso import AlgorithmArguments, ParticleSwarmOptimizer
 from pyalgorithmlab.common.consts import Consts
@@ -106,21 +105,15 @@ class PathPlanner3D:
         fig.add_trace(terrain_trace, row=1, col=2)
 
         # 使用三阶B样条曲线绘制平滑路径
-        x = np.array([p.x for p in self.best_path_points])
-        y = np.array([p.y for p in self.best_path_points])
-        z = np.array([p.z for p in self.best_path_points])
-        # 计算路径点的参数化变量
-        t_for_spline = np.arange(len(x))
-        # 创建三阶B样条曲线（k=3表示三阶）
-        spline = make_interp_spline(t_for_spline, np.column_stack((x, y, z)), k=3)
-        # 生成平滑路径点，使用参数化变量进行插值，可以根据需要调整点的数量
-        smooth_path = spline(np.linspace(t_for_spline.min(), t_for_spline.max(), 100))
-        x, y, z = smooth_path[:, 0], smooth_path[:, 1], smooth_path[:, 2]
+        x = [p.x for p in self.best_path_points]
+        y = [p.y for p in self.best_path_points]
+        z = [p.z for p in self.best_path_points]
+        x_smooth, y_smooth, z_smooth = plotly3d.smooth_path(x, y, z)
         path_trace = go.Scatter3d(
-            x=x,
-            y=y,
-            z=z,
-            line={"width": 10, "color": "green"},
+            x=x_smooth,
+            y=y_smooth,
+            z=z_smooth,
+            line={"width": 10, "color": "springgreen"},
             marker={"size": 3, "color": "yellow", "symbol": "diamond"},
             mode="lines+markers" if mark_waypoint else "lines",
             name="目标路径",
@@ -295,7 +288,7 @@ if __name__ == "__main__":
     pso_optimizer = ParticleSwarmOptimizer(
         args=pso_args,
         problem_type=ProblemType.MIN,
-        objective_function=path_planner.calculate_best_path_costs,
+        fitness_function=path_planner.calculate_best_path_costs,
     )
 
     best_fitness_values = pso_optimizer.start_iterating()

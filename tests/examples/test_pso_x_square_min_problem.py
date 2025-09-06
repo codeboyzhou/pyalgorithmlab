@@ -41,7 +41,7 @@ def test_x_square_min_problem():
     pso_optimizer = ParticleSwarmOptimizer(
         args=pso_arguments,
         problem_type=ProblemType.MIN,
-        objective_function=x_square_min_problem,
+        fitness_function=x_square_min_problem,
     )
 
     # 执行算法迭代

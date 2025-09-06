@@ -69,7 +69,7 @@ class ParticleSwarmOptimizer:
         self,
         args: AlgorithmArguments,
         problem_type: ProblemType,
-        objective_function: Callable[[np.ndarray], np.ndarray],
+        fitness_function: Callable[[np.ndarray], np.ndarray],
     ) -> None:
         """
         初始化粒子群优化算法
@@ -77,7 +77,7 @@ class ParticleSwarmOptimizer:
         Args:
             args: 算法参数
             problem_type: 问题类型
-            objective_function: 待优化问题的目标函数
+            fitness_function: 待优化问题的适应度函数
                 接受一个形状为 (num_particles, num_dimensions) 的 numpy 数组，表示每个粒子的位置
                 返回一个形状为 (num_particles,) 的 numpy 数组，表示每个粒子的适应度值
         """
@@ -96,7 +96,7 @@ class ParticleSwarmOptimizer:
 
         self.args = args
         self.problem_type = problem_type
-        self.objective_function = objective_function
+        self.fitness_function = fitness_function
 
         logger.success("PSO算法初始化成功")
 
@@ -134,7 +134,7 @@ class ParticleSwarmOptimizer:
 
     def _update_individual_best(self) -> None:
         """更新个体最优解"""
-        fitness = self.objective_function(self.positions)
+        fitness = self.fitness_function(self.positions)
         better_indices = (
             fitness < self.individual_best_fitness
             if self.problem_type == ProblemType.MIN
